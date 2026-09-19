@@ -16,6 +16,15 @@ function placeChipMenu(menu, btn) {
   menu.style.right = "auto";
 }
 
+// A chip's hover transform makes it the containing block for a position:fixed
+// menu inside it, so open menus live under <body> until closed.
+function closeAllMenus() {
+  document.querySelectorAll(".menu.open").forEach((m) => {
+    m.classList.remove("open");
+    if (m._home && m.parentElement !== m._home) m._home.appendChild(m);
+  });
+}
+
 function createFileStrip({ input, stripEl, accept, toolbar, extraMenu }) {
   let items = []; // { file, url?, isPdf }
   const wrap = document.createElement("div");
@@ -50,7 +59,7 @@ function createFileStrip({ input, stripEl, accept, toolbar, extraMenu }) {
   rightBtn.addEventListener("click", () => strip.scrollBy({ left: scrollAmt(), behavior: "smooth" }));
   strip.addEventListener("scroll", () => {
     updateArrows();
-    document.querySelectorAll(".menu.open").forEach((m) => m.classList.remove("open"));
+    closeAllMenus();
   }, { passive: true });
   window.addEventListener("resize", updateArrows);
 
@@ -66,6 +75,7 @@ function createFileStrip({ input, stripEl, accept, toolbar, extraMenu }) {
   }
 
   function render(opts = {}) {
+    closeAllMenus();
     strip.innerHTML = "";
     const frag = document.createDocumentFragment();
 
@@ -83,6 +93,8 @@ function createFileStrip({ input, stripEl, accept, toolbar, extraMenu }) {
       chip.addEventListener("dragend", () => {
         dragFrom = -1;
         chip.classList.remove("dragging");
+        // DOM was reordered directly; re-render so menu buttons hold fresh indices
+        render();
       });
       chip.addEventListener("dragover", (e) => {
         if (dragFrom === -1) return;
@@ -142,9 +154,14 @@ function createFileStrip({ input, stripEl, accept, toolbar, extraMenu }) {
 
       menuBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        document.querySelectorAll(".menu.open").forEach((m) => { if (m !== menu) m.classList.remove("open"); });
-        menu.classList.toggle("open");
-        if (menu.classList.contains("open")) placeChipMenu(menu, menuBtn);
+        const wasOpen = menu.classList.contains("open");
+        closeAllMenus();
+        if (!wasOpen) {
+          menu._home = chip;
+          document.body.appendChild(menu);
+          menu.classList.add("open");
+          placeChipMenu(menu, menuBtn);
+        }
       });
       mvLeft.addEventListener("click", () => {
         const rects = canAnimate() ? captureRects() : null;
@@ -215,7 +232,7 @@ function createFileStrip({ input, stripEl, accept, toolbar, extraMenu }) {
 
   const docClickHandler = (e) => {
     if (!e.target.closest(".menu") && !e.target.closest(".chip-menu-btn"))
-      document.querySelectorAll(".menu.open").forEach((m) => m.classList.remove("open"));
+      closeAllMenus();
   };
   document.addEventListener("click", docClickHandler);
 

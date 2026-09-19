@@ -22,7 +22,7 @@ const strip = createFileStrip({
     const cropBtn = document.createElement("button");
     cropBtn.textContent = item.crop ? "Re-crop" : "Crop";
     cropBtn.addEventListener("click", async () => {
-      document.querySelectorAll(".menu.open").forEach((m) => m.classList.remove("open"));
+      closeAllMenus();
       const rect = await openCrop(item.file);
       if (!rect) return;
       item.crop = rect;
