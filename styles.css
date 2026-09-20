@@ -308,7 +308,7 @@ a { color: inherit; text-decoration: none; }
 .ws-actions button {
   flex: 1; height: 30px;
   background: rgba(255, 255, 255, 0.95); border: 1px solid var(--line); border-radius: 8px;
-  color: var(--ink); cursor: pointer;
+  color: #10131c; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
 }
 .ws-actions button:hover { background: var(--tint); border-color: var(--blue); color: var(--blue); }
