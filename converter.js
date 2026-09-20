@@ -1,11 +1,9 @@
 // Image tools get crop + rotate inside the workspace
 window.WS_IMAGE_MODE = true;
 
-// Image to PDF tool — crop, camera, and full-page workspace support
+// Image to PDF tool — crop and full-page workspace support
 const dropzone = document.getElementById("dropzone");
 const fileInput = document.getElementById("fileInput");
-const cameraInput = document.getElementById("cameraInput");
-const cameraFallback = document.getElementById("cameraFallback");
 const stripEl = document.getElementById("fileStrip");
 const toolbar = document.getElementById("toolbar");
 const convertBtn = document.getElementById("convertBtn");
@@ -69,24 +67,6 @@ new MutationObserver(() => {
 }).observe(document.querySelector(".file-strip-wrap"), { childList: true, subtree: true });
 
 wireDropzone(dropzone, fileInput, (f) => strip.addFiles(f));
-
-// camera: getUserMedia capture event + fallback input + desktop input
-window.addEventListener("swiftpdf-photo", (e) => {
-  const detail = e.detail;
-  if (!detail) return;
-  const list = detail.length !== undefined && !(detail instanceof File) ? detail : [detail];
-  strip.addFiles(list);
-  const wsOverlay = document.getElementById("workspaceOverlay");
-  if (!wsOverlay.hidden) renderWorkspace();
-});
-cameraInput.addEventListener("change", () => {
-  if (cameraInput.files.length) strip.addFiles(cameraInput.files);
-  cameraInput.value = "";
-});
-cameraFallback.addEventListener("change", () => {
-  if (cameraFallback.files.length) strip.addFiles(cameraFallback.files);
-  cameraFallback.value = "";
-});
 
 wsBtn.addEventListener("click", () => openWorkspace(strip));
 

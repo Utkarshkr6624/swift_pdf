@@ -1,10 +1,5 @@
 // Dark mode toggle: persists choice, defaults to system preference.
 (function () {
-  // phones get the camera UI; desktops don't
-  if (!window.matchMedia("(hover: none) and (pointer: coarse)").matches) {
-    document.documentElement.classList.add("no-touch");
-  }
-
   const saved = localStorage.getItem("swiftpdf-theme");
   const system = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   const apply = (t) => {

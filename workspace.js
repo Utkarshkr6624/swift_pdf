@@ -138,9 +138,7 @@ function renderWorkspace() {
   });
 
   const isImages = window.WS_IMAGE_MODE === true;
-  const camBtn = document.getElementById("wsCameraBtn");
   const titleEl = document.getElementById("wsTitle");
-  if (camBtn) camBtn.hidden = !isImages;
   if (titleEl) titleEl.textContent = isImages ? "Edit images" : "Edit files";
   const noun = isImages ? "image" : "file";
   const countEl = document.getElementById("wsCount");
@@ -193,21 +191,15 @@ async function rotateWsItem(item) {
   wsStrip.render();
 }
 
-// hook up add-more + camera inside the workspace
+// hook up add-more inside the workspace
 // (runs immediately — scripts load at end of body, after DOMContentLoaded)
 function initWorkspaceUI() {
   const addCard = document.getElementById("wsAddCard");
   const doneBtn = document.getElementById("wsDoneBtn");
-  const camBtn = document.getElementById("wsCameraBtn");
   const overlay = document.getElementById("workspaceOverlay");
   if (!overlay) return;
 
   if (addCard) addCard.addEventListener("click", () => document.getElementById("fileInput").click());
-  if (camBtn) {
-    // camera.js only loads on the image tool; PDF tools hide the camera button anyway
-    if (typeof openCamera === "function") camBtn.addEventListener("click", openCamera);
-    else camBtn.hidden = true;
-  }
   if (doneBtn) doneBtn.addEventListener("click", () => {
     if (wsStrip) wsStrip.render();
     closeWorkspace();
