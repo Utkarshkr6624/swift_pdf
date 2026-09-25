@@ -4,7 +4,9 @@
 // openWorkspace(stripInstance) -> resolves when user closes it.
 
 let wsStrip = null;
-let wsDragEl = null;
+let wsDragItem = null;
+let wsLastDragTarget = null;
+let wsDragOrder = null;
 
 function openWorkspace(stripInstance) {
   wsStrip = stripInstance;
@@ -30,8 +32,9 @@ function renumberCells() {
     if (num) num.textContent = idx + 1;
   });
   if (wsStrip) {
+    const noun = window.WS_IMAGE_MODE === true ? "image" : "file";
     document.getElementById("wsCount").textContent =
-      wsStrip.items.length + " image" + (wsStrip.items.length === 1 ? "" : "s");
+      wsStrip.items.length + " " + noun + (wsStrip.items.length === 1 ? "" : "s");
   }
 }
 
@@ -46,8 +49,9 @@ function renderWorkspace() {
   wsStrip.items.forEach((item, i) => {
     const cell = document.createElement("div");
     cell.className = "ws-cell";
-    // drag & click actions are for image editing only; PDF tools show a read-only grid
-    cell.draggable = imageMode;
+    // Both image and PDF editors can reorder files.
+    cell.draggable = true;
+    cell._item = item;
     cell.dataset.i = i;
 
     let thumb;
@@ -98,6 +102,7 @@ function renderWorkspace() {
       } else if (act === "rotate") {
         await rotateWsItem(item);
       } else if (act === "delete") {
+        hideResultBar();
         if (item.url) URL.revokeObjectURL(item.url);
         wsStrip.items.splice(i, 1);
         renderWorkspace();
@@ -106,32 +111,41 @@ function renderWorkspace() {
     });
     }
 
-    // drag & drop reorder (image editing only)
-    if (!imageMode) { /* skip drag listeners for read-only grids */ }
+    // Files can be reordered in the editor for both image and PDF tools.
     cell.addEventListener("dragstart", (e) => {
-      wsDragEl = i;
+      wsDragItem = item;
+      wsDragOrder = [...wsStrip.items];
+      wsLastDragTarget = null;
       cell.classList.add("ws-dragging");
       e.dataTransfer.effectAllowed = "move";
-      try { e.dataTransfer.setData("text/plain", item.file.name); } catch {}
+      e.dataTransfer.setData("text/plain", item.file.name);
     });
     cell.addEventListener("dragend", () => {
-      wsDragEl = null;
       cell.classList.remove("ws-dragging");
+      const ordered = [...grid.querySelectorAll(".ws-cell")].map((el) => el._item);
+      if (wsStrip && ordered.length === wsStrip.items.length) {
+        const changed = wsDragOrder && ordered.some((entry, index) => entry !== wsDragOrder[index]);
+        if (changed) hideResultBar();
+        wsStrip.items.splice(0, wsStrip.items.length, ...ordered);
+        renumberCells();
+        wsStrip.render();
+      }
+      wsDragItem = null;
+      wsLastDragTarget = null;
+      wsDragOrder = null;
     });
     cell.addEventListener("dragover", (e) => {
       e.preventDefault();
-      if (wsDragEl === null) return;
-      const grid = document.getElementById("wsGrid");
-      const cells = [...grid.querySelectorAll(".ws-cell")];
-      const targetIdx = cells.indexOf(cell);
-      if (targetIdx === -1 || targetIdx === wsDragEl) return;
-      const moving = cells[wsDragEl];
-      if (targetIdx < wsDragEl) grid.insertBefore(moving, cell);
-      else grid.insertBefore(moving, cell.nextSibling);
-      const [moved] = wsStrip.items.splice(wsDragEl, 1);
-      wsStrip.items.splice(targetIdx, 0, moved);
-      wsDragEl = targetIdx;
-      renumberCells();
+      if (!wsDragItem || item === wsDragItem) return;
+      const rect = cell.getBoundingClientRect();
+      const after = e.clientY > rect.top + rect.height / 2 ||
+        (Math.abs(e.clientY - (rect.top + rect.height / 2)) < rect.height / 3 && e.clientX > rect.left + rect.width / 2);
+      if (wsLastDragTarget && wsLastDragTarget.item === item && wsLastDragTarget.after === after) return;
+      const moving = [...grid.querySelectorAll(".ws-cell")].find((el) => el._item === wsDragItem);
+      if (!moving) return;
+      const reference = after ? cell.nextElementSibling : cell;
+      if (reference !== moving && reference !== moving.nextElementSibling) grid.insertBefore(moving, reference || document.getElementById("wsAddCard"));
+      wsLastDragTarget = { item, after };
     });
 
     grid.insertBefore(cell, addCard);
@@ -148,6 +162,7 @@ function renderWorkspace() {
 }
 
 async function refreshWsThumb(item, rect) {
+  hideResultBar();
   const canvas = document.createElement("canvas");
   const img = new Image();
   await new Promise((res, rej) => { img.onload = res; img.onerror = res; img.src = URL.createObjectURL(item.file); });
@@ -168,6 +183,7 @@ async function refreshWsThumb(item, rect) {
 }
 
 async function rotateWsItem(item) {
+  hideResultBar();
   const canvas = document.createElement("canvas");
   const img = new Image();
   await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = URL.createObjectURL(item.file); });

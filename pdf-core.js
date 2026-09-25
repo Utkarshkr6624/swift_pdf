@@ -93,6 +93,7 @@ function createFileStrip({ input, stripEl, accept, toolbar, extraMenu }) {
       chip.addEventListener("dragend", () => {
         dragFrom = -1;
         chip.classList.remove("dragging");
+        hideResultBar();
         // DOM was reordered directly; re-render so menu buttons hold fresh indices
         render();
       });
@@ -164,17 +165,20 @@ function createFileStrip({ input, stripEl, accept, toolbar, extraMenu }) {
         }
       });
       mvLeft.addEventListener("click", () => {
+        hideResultBar();
         const rects = canAnimate() ? captureRects() : null;
         [items[i - 1], items[i]] = [items[i], items[i - 1]];
         render({ rects, fromIndex: i });
       });
       mvRight.addEventListener("click", () => {
+        hideResultBar();
         const rects = canAnimate() ? captureRects() : null;
         [items[i + 1], items[i]] = [items[i], items[i + 1]];
         render({ rects, fromIndex: i });
       });
       rm.addEventListener("click", () => {
         const doRemove = () => {
+          hideResultBar();
           if (item.url) URL.revokeObjectURL(item.url);
           const rects = canAnimate() ? captureRects() : null;
           items.splice(i, 1);
@@ -239,6 +243,7 @@ function createFileStrip({ input, stripEl, accept, toolbar, extraMenu }) {
   function addFiles(list) {
     let skipped = 0;
     const fromIndex = items.length;
+    if (list && list.length) hideResultBar();
     for (const f of list) {
       if (matches(f)) {
         const item = { file: f, url: makesThumb() ? URL.createObjectURL(f) : null, crop: null };
@@ -253,7 +258,7 @@ function createFileStrip({ input, stripEl, accept, toolbar, extraMenu }) {
 
   function matches(f) {
     if (accept === "pdf") return f.type === "application/pdf" || /\.pdf$/i.test(f.name);
-    if (accept === "image") return f.type.startsWith("image/") && f.type !== "image/gif";
+    if (accept === "image") return (/^image\//i.test(f.type || "") || /\.(jpe?g|png|webp)$/i.test(f.name)) && !/^image\/gif$/i.test(f.type || "");
     return false;
   }
   function makesThumb() { return accept === "image"; }
@@ -306,6 +311,9 @@ function createFileStrip({ input, stripEl, accept, toolbar, extraMenu }) {
       items.forEach((it) => { if (it.url) URL.revokeObjectURL(it.url); });
       items = [];
       render();
+      hideResultBar();
+      const status = document.getElementById("status");
+      if (status) setStatus("");
     },
   };
 }
@@ -335,9 +343,19 @@ function wireDropzone(dropzone, input, addFn) {
 }
 
 /* ---------- Result bar (download + preview) ---------- */
+function hideResultBar() {
+  const bar = document.getElementById("resultBar");
+  if (!bar) return;
+  if (bar._resultUrl) URL.revokeObjectURL(bar._resultUrl);
+  bar._resultUrl = null;
+  bar.hidden = true;
+}
+
 function showResult(blob, filename) {
   const bar = document.getElementById("resultBar");
+  if (bar._resultUrl) URL.revokeObjectURL(bar._resultUrl);
   const url = URL.createObjectURL(blob);
+  bar._resultUrl = url;
   document.getElementById("downloadBtn").onclick = () => {
     const a = document.createElement("a");
     a.href = url;

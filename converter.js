@@ -32,6 +32,7 @@ const strip = createFileStrip({
 });
 
 async function refreshThumb(item, rect) {
+  hideResultBar();
   const canvas = document.createElement("canvas");
   const img = new Image();
   const src = URL.createObjectURL(item.file);
