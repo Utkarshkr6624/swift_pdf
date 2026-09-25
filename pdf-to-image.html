@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script>(function(){var t=localStorage.getItem("swiftpdf-theme");if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content=t;})();</script>
+  <script>(function(){var t=null;try{t=localStorage.getItem("swiftpdf-theme")}catch(e){}if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content=t;})();</script>
   <title>PDF to Image Converter — Turn PDF Pages into PNG | SwiftPDF</title>
-  <meta name="description" content="Convert every page of a PDF into a high-quality PNG image for free. Choose the resolution and download all pages instantly. 100% private — files never leave your device." />
+  <meta name="description" content="Convert PDF pages to high-quality PNG images. Choose the resolution and download every page together in a ZIP. Files stay on your device." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
+  
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27><rect width=%2732%27 height=%2732%27 rx=%279%27 fill=%27%232f6bff%27/><path d=%27M10 6h8l5 5v15h-13z%27 fill=%27%23fff%27/></svg>" />
   <meta name="keywords" content="pdf to image, pdf to png, pdf to jpg, convert pdf pages to images" />
   <meta name="robots" content="index, follow" />
@@ -20,12 +20,12 @@
   <meta property="og:locale" content="en_US" />
   <meta property="og:site_name" content="SwiftPDF" />
   <meta property="og:title" content="PDF to Image Converter — Turn PDF Pages into PNG | SwiftPDF" />
-  <meta property="og:description" content="Convert every page of a PDF into a high-quality PNG image for free. Choose the resolution and download all pages instantly. Nothing is uploaded to a server." />
+  <meta property="og:description" content="Convert PDF pages to high-quality PNG images. Choose the resolution and download every page together in a ZIP. Files stay on your device." />
   <meta property="og:url" content="https://swift-pdf-beta.vercel.app/pdf-to-image.html" />
   <meta property="og:image" content="https://swift-pdf-beta.vercel.app/og-image.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="PDF to Image Converter — Turn PDF Pages into PNG | SwiftPDF" />
-  <meta name="twitter:description" content="Convert every page of a PDF into a high-quality PNG image for free. Choose the resolution and download all pages instantly. Nothing is uploaded to a server." />
+  <meta name="twitter:description" content="Convert PDF pages to high-quality PNG images. Choose the resolution and download every page together in a ZIP. Files stay on your device." />
   <meta name="twitter:image" content="https://swift-pdf-beta.vercel.app/og-image.png" />
   <script type="application/ld+json">
   {
@@ -37,7 +37,7 @@
         "url": "https://swift-pdf-beta.vercel.app/pdf-to-image.html",
         "applicationCategory": "UtilitiesApplication",
         "operatingSystem": "Any",
-        "description": "Convert every page of a PDF into a high-quality PNG image for free, at the resolution you choose.",
+        "description": "Convert PDF pages to high-quality PNG images and download every page in a ZIP from your browser.",
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
       },
       {
@@ -50,6 +50,7 @@
     ]
   }
   </script>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <nav class="nav">
@@ -113,6 +114,12 @@
           <button class="btn btn-ghost" id="clearBtn" type="button">Clear all</button>
           <button class="btn btn-done" id="convertBtn" type="button">Convert to images</button>
         </div>
+      </div>
+      <div class="result-bar" id="resultBar" hidden>
+        <span class="result-text">Your images are ready in a ZIP file.</span>
+        <div class="name-row"><input class="name-input" id="fileName" type="text" placeholder="pdf-images" aria-label="ZIP file name" maxlength="80" /><span class="name-ext">.zip</span></div>
+        <button class="btn btn-ghost" id="newJobBtn" type="button">Start another</button>
+        <button class="btn btn-primary result-download" id="downloadBtn" type="button">&#8595; Download ZIP</button>
       </div>
       <p class="status" id="status" role="status"></p>
     </div>

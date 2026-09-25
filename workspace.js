@@ -42,8 +42,10 @@ function renderWorkspace() {
   if (!wsStrip) return;
   const grid = document.getElementById("wsGrid");
   const addCard = document.getElementById("wsAddCard");
+  const cameraCard = document.getElementById("wsCameraCard");
   grid.innerHTML = "";
   grid.appendChild(addCard); // innerHTML wipe detached it; reattach so cells can be inserted before it
+  if (cameraCard) grid.appendChild(cameraCard);
 
   const imageMode = window.WS_IMAGE_MODE === true;
   wsStrip.items.forEach((item, i) => {
@@ -93,20 +95,24 @@ function renderWorkspace() {
       const act = e.target.closest("button") && e.target.closest("button").dataset.act;
       if (!act) return;
       e.stopPropagation();
-      if (act === "crop") {
-        const rect = await openCrop(item.file);
-        if (rect) {
-          item.crop = rect;
-          await refreshWsThumb(item, rect);
+      try {
+        if (act === "crop") {
+          const rect = await openCrop(item.file);
+          if (rect) {
+            item.crop = rect;
+            await refreshWsThumb(item, rect);
+          }
+        } else if (act === "rotate") {
+          await rotateWsItem(item);
+        } else if (act === "delete") {
+          hideResultBar();
+          if (item.url) URL.revokeObjectURL(item.url);
+          wsStrip.items.splice(i, 1);
+          renderWorkspace();
+          wsStrip.render();
         }
-      } else if (act === "rotate") {
-        await rotateWsItem(item);
-      } else if (act === "delete") {
-        hideResultBar();
-        if (item.url) URL.revokeObjectURL(item.url);
-        wsStrip.items.splice(i, 1);
-        renderWorkspace();
-        wsStrip.render();
+      } catch (err) {
+        setStatus(err.message || "Could not edit this image.", "error");
       }
     });
     }
@@ -165,20 +171,26 @@ async function refreshWsThumb(item, rect) {
   hideResultBar();
   const canvas = document.createElement("canvas");
   const img = new Image();
-  await new Promise((res, rej) => { img.onload = res; img.onerror = res; img.src = URL.createObjectURL(item.file); });
-  const maxSide = 360;
-  const s = Math.min(1, maxSide / Math.max(rect.w, rect.h));
-  canvas.width = Math.max(1, Math.round(rect.w * s));
-  canvas.height = Math.max(1, Math.round(rect.h * s));
-  canvas.getContext("2d").drawImage(img, rect.x, rect.y, rect.w, rect.h, 0, 0, canvas.width, canvas.height);
-  URL.revokeObjectURL(img.src);
-  await new Promise((res) => canvas.toBlob((blob) => {
-    if (!blob) return res();
+  const src = URL.createObjectURL(item.file);
+  try {
+    await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error(`Could not read ${item.file.name}.`)); img.src = src; });
+    const maxSide = 360;
+    const s = Math.min(1, maxSide / Math.max(rect.w, rect.h));
+    canvas.width = Math.max(1, Math.round(rect.w * s));
+    canvas.height = Math.max(1, Math.round(rect.h * s));
+    const ctx = canvas.getContext("2d", { alpha: false });
+    if (!ctx) throw new Error("This browser could not prepare the cropped preview.");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, rect.x, rect.y, rect.w, rect.h, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((res, rej) => canvas.toBlob((result) => result ? res(result) : rej(new Error("Could not save the cropped preview.")), "image/jpeg", 0.85));
     if (item.url) URL.revokeObjectURL(item.url);
     item.url = URL.createObjectURL(blob);
-    res();
-  }, "image/jpeg", 0.85));
-  renderWorkspace();
+  } finally {
+    URL.revokeObjectURL(src);
+    canvas.width = 0;
+    canvas.height = 0;
+  }
   wsStrip.render();
 }
 
@@ -186,24 +198,31 @@ async function rotateWsItem(item) {
   hideResultBar();
   const canvas = document.createElement("canvas");
   const img = new Image();
-  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = URL.createObjectURL(item.file); });
-  URL.revokeObjectURL(img.src);
-  const crop = item.crop;
-  const sx = crop ? crop.x : 0, sy = crop ? crop.y : 0;
-  const sw = crop ? crop.w : img.naturalWidth, sh = crop ? crop.h : img.naturalHeight;
-  canvas.width = sh; canvas.height = sw;
-  const ctx = canvas.getContext("2d");
-  ctx.translate(canvas.width / 2, canvas.height / 2);
-  ctx.rotate(Math.PI / 2);
-  ctx.drawImage(img, sx, sy, sw, sh, -sw / 2, -sh / 2, sw, sh);
-  item.crop = null; // rotation is baked into the new thumbnail/preview
-  await new Promise((res) => canvas.toBlob(async (blob) => {
-    item.file = new File([blob], item.file.name.replace(/\.jpe?g$/i, "") + "-rotated.jpg", { type: "image/jpeg" });
+  const src = URL.createObjectURL(item.file);
+  try {
+    await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error(`Could not read ${item.file.name}.`)); img.src = src; });
+    const crop = item.crop;
+    const sx = crop ? crop.x : 0, sy = crop ? crop.y : 0;
+    const sw = crop ? crop.w : img.naturalWidth, sh = crop ? crop.h : img.naturalHeight;
+    canvas.width = sh; canvas.height = sw;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("This browser could not prepare the rotated image.");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(Math.PI / 2);
+    ctx.drawImage(img, sx, sy, sw, sh, -sw / 2, -sh / 2, sw, sh);
+    const blob = await new Promise((res, rej) => canvas.toBlob((result) => result ? res(result) : rej(new Error("Could not save the rotated image.")), "image/jpeg", 0.92));
+    const baseName = item.file.name.replace(/\.[^.]+$/, "");
+    item.file = new File([blob], `${baseName}-rotated.jpg`, { type: "image/jpeg" });
+    item.crop = null; // Rotation is baked into the replacement JPEG.
     if (item.url) URL.revokeObjectURL(item.url);
     item.url = URL.createObjectURL(blob);
-    res();
-  }, "image/jpeg", 0.92));
-  renderWorkspace();
+  } finally {
+    URL.revokeObjectURL(src);
+    canvas.width = 0;
+    canvas.height = 0;
+  }
   wsStrip.render();
 }
 

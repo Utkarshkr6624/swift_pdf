@@ -8,7 +8,6 @@ const stripEl = document.getElementById("fileStrip");
 const toolbar = document.getElementById("toolbar");
 const convertBtn = document.getElementById("convertBtn");
 const clearBtn = document.getElementById("clearBtn");
-const resultBar = document.getElementById("resultBar");
 const wsBtn = document.getElementById("wsBtn");
 
 const strip = createFileStrip({
@@ -16,6 +15,11 @@ const strip = createFileStrip({
   stripEl,
   accept: "image",
   toolbar,
+  onChange(count) {
+    const noun = count === 1 ? "image" : "images";
+    const pageNoun = count === 1 ? "PDF page" : "PDF pages";
+    document.getElementById("imagePageCount").textContent = `${count} ${noun} · ${count} ${pageNoun}`;
+  },
   extraMenu(item, menu) {
     const cropBtn = document.createElement("button");
     cropBtn.textContent = item.crop ? "Re-crop" : "Crop";
@@ -23,9 +27,13 @@ const strip = createFileStrip({
       closeAllMenus();
       const rect = await openCrop(item.file);
       if (!rect) return;
-      item.crop = rect;
-      await refreshThumb(item, rect);
-      strip.render();
+      try {
+        await refreshThumb(item, rect);
+        item.crop = rect;
+        strip.render();
+      } catch (err) {
+        setStatus(err.message || `Could not crop ${item.file.name}.`, "error");
+      }
     });
     menu.prepend(cropBtn);
   },
@@ -36,19 +44,25 @@ async function refreshThumb(item, rect) {
   const canvas = document.createElement("canvas");
   const img = new Image();
   const src = URL.createObjectURL(item.file);
-  await new Promise((res, rej) => { img.onload = res; img.onerror = res; img.src = src; });
-  URL.revokeObjectURL(src);
-  const maxSide = 240;
-  const s = Math.min(1, maxSide / Math.max(rect.w, rect.h));
-  canvas.width = Math.max(1, Math.round(rect.w * s));
-  canvas.height = Math.max(1, Math.round(rect.h * s));
-  canvas.getContext("2d").drawImage(img, rect.x, rect.y, rect.w, rect.h, 0, 0, canvas.width, canvas.height);
-  await new Promise((res) => canvas.toBlob((blob) => {
-    if (!blob) return res();
+  try {
+    await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error(`Could not read ${item.file.name}.`)); img.src = src; });
+    const maxSide = 240;
+    const s = Math.min(1, maxSide / Math.max(rect.w, rect.h));
+    canvas.width = Math.max(1, Math.round(rect.w * s));
+    canvas.height = Math.max(1, Math.round(rect.h * s));
+    const context = canvas.getContext("2d", { alpha: false });
+    if (!context) throw new Error("This browser could not prepare the cropped image preview.");
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(img, rect.x, rect.y, rect.w, rect.h, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((res, rej) => canvas.toBlob((result) => result ? res(result) : rej(new Error("Could not save the cropped image preview.")), "image/jpeg", 0.85));
     if (item.url) URL.revokeObjectURL(item.url);
     item.url = URL.createObjectURL(blob);
-    res();
-  }, "image/jpeg", 0.85));
+  } finally {
+    URL.revokeObjectURL(src);
+    canvas.width = 0;
+    canvas.height = 0;
+  }
 }
 
 // "cropped" badge
@@ -68,6 +82,7 @@ new MutationObserver(() => {
 }).observe(document.querySelector(".file-strip-wrap"), { childList: true, subtree: true });
 
 wireDropzone(dropzone, fileInput, (f) => strip.addFiles(f));
+wireStartAnother(fileInput, () => strip.clear());
 
 wsBtn.addEventListener("click", () => openWorkspace(strip));
 
@@ -75,8 +90,9 @@ clearBtn.addEventListener("click", () => strip.clear());
 
 convertBtn.addEventListener("click", async () => {
   if (!strip.items.length) return;
+  setToolBusy(true);
   convertBtn.disabled = true;
-  resultBar.hidden = true;
+  hideResultBar();
   setStatus("Converting…");
 
   try {
@@ -87,8 +103,14 @@ convertBtn.addEventListener("click", async () => {
     showResult(blob, "swiftpdf.pdf");
   } catch (err) {
     console.error(err);
-    setStatus("Conversion failed. Please try again with different images.", "error");
+    setStatus(err.message || "Conversion failed. Please try again with browser-supported images.", "error");
   } finally {
     convertBtn.disabled = false;
+    setToolBusy(false);
   }
 });
+
+// Shared by the live camera and the native mobile camera picker.
+window.swiftPdfAddCameraPhoto = (file) => {
+  if (file) strip.addFiles([file]);
+};

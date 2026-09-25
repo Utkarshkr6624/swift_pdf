@@ -25,7 +25,7 @@ function closeAllMenus() {
   });
 }
 
-function createFileStrip({ input, stripEl, accept, toolbar, extraMenu }) {
+function createFileStrip({ input, stripEl, accept, toolbar, extraMenu, onChange }) {
   let items = []; // { file, url?, isPdf }
   const wrap = document.createElement("div");
   wrap.className = "file-strip-wrap";
@@ -226,6 +226,9 @@ function createFileStrip({ input, stripEl, accept, toolbar, extraMenu }) {
     }
 
     toolbar.hidden = items.length === 0;
+    if (typeof onChange === "function") onChange(items.length);
+    const workspaceOverlay = document.getElementById("workspaceOverlay");
+    if (workspaceOverlay && !workspaceOverlay.hidden && typeof renderWorkspace === "function") renderWorkspace();
     requestAnimationFrame(updateArrows);
     if (!toolbar.hidden && canAnimate()) {
       toolbar.classList.remove("revealed");
@@ -258,34 +261,40 @@ function createFileStrip({ input, stripEl, accept, toolbar, extraMenu }) {
 
   function matches(f) {
     if (accept === "pdf") return f.type === "application/pdf" || /\.pdf$/i.test(f.name);
-    if (accept === "image") return (/^image\//i.test(f.type || "") || /\.(jpe?g|png|webp)$/i.test(f.name)) && !/^image\/gif$/i.test(f.type || "");
+    if (accept === "image") {
+      // Let the browser's image decoder decide which image formats it can actually read.
+      return /^image\//i.test(f.type || "") || /\.(jpe?g|jpe|jfif|png|webp|gif|bmp|dib|avif|apng|tif|tiff|ico|svg|heic|heif)$/i.test(f.name);
+    }
     return false;
   }
   function makesThumb() { return accept === "image"; }
-  function acceptLabel() { return accept === "pdf" ? "PDF files" : "JPG, PNG, WebP"; }
+  function acceptLabel() { return accept === "pdf" ? "PDF files" : "image formats supported by your browser"; }
 
   // Sequential queue so many PDFs render their first page one after another
   let thumbChain = Promise.resolve();
   const thumbDone = new WeakSet();
 
   function queuePdfThumb(item) {
-    if (thumbDone.has(item.file)) return;
-    thumbDone.add(item.file);
+    if (thumbDone.has(item)) return;
+    thumbDone.add(item);
     thumbChain = thumbChain.then(() => renderPdfThumb(item)).catch(() => {
       // failed (offline or corrupt PDF) — keep the fallback tile
     });
   }
 
   async function renderPdfThumb(item) {
+    let pdf = null;
+    let page = null;
+    let canvas = null;
     try {
       const pdfjs = await loadPdfJs();
       const data = await item.file.arrayBuffer();
-      const pdf = await pdfjs.getDocument({ data }).promise;
-      const page = await pdf.getPage(1);
+      pdf = await pdfjs.getDocument({ data }).promise;
+      page = await pdf.getPage(1);
       const base = page.getViewport({ scale: 1 });
       const s = 160 / base.width;
       const viewport = page.getViewport({ scale: s });
-      const canvas = document.createElement("canvas");
+      canvas = document.createElement("canvas");
       canvas.width = viewport.width;
       canvas.height = viewport.height;
       await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
@@ -293,13 +302,13 @@ function createFileStrip({ input, stripEl, accept, toolbar, extraMenu }) {
       if (blob && items.includes(item)) {
         item.url = URL.createObjectURL(blob);
         render({ rects: null, fromIndex: -1 });
-        // refresh the workspace grid too if it's open
-        const wsOverlay = document.getElementById("workspaceOverlay");
-        if (wsOverlay && !wsOverlay.hidden && typeof renderWorkspace === "function") renderWorkspace();
       }
-      pdf.cleanup && pdf.cleanup();
     } catch (err) {
       // keep fallback tile
+    } finally {
+      if (page) page.cleanup();
+      if (canvas) { canvas.width = 0; canvas.height = 0; }
+      if (pdf) await pdf.destroy();
     }
   }
 
@@ -326,20 +335,96 @@ function formatSize(bytes) {
 
 function setStatus(msg, kind = "") {
   const el = document.getElementById("status");
-  el.textContent = msg;
+  if (!el) return;
+  el.textContent = msg == null ? "" : String(msg);
   el.className = "status" + (kind ? " " + kind : "");
+  // Keep progress announcements calm, but announce failures immediately.
+  el.setAttribute("role", kind === "error" ? "alert" : "status");
+  el.setAttribute("aria-live", kind === "error" ? "assertive" : "polite");
+  el.setAttribute("aria-atomic", "true");
 }
 const flashStatus = setStatus;
 
+// Translate common browser/PDF-library failures into a next step people can use.
+function explainProcessingError(error, action, filename) {
+  const message = error && error.message ? String(error.message) : String(error || "");
+  const name = error && error.name ? String(error.name) : "";
+  const subject = filename ? `“${filename}”` : "this file";
+  const lower = `${name} ${message}`.toLowerCase();
+
+  if (name === "AbortError" || /usercancelled|user canceled|operation was aborted/i.test(message)) {
+    return "Processing was interrupted. Choose the file again and retry when you are ready.";
+  }
+  if (/passwordexception|password.?protected|incorrect password|password was not accepted|encrypted.*password/i.test(lower)) {
+    return `${subject} needs its correct open password. Enter the password and try again; SwiftPDF cannot recover or guess it.`;
+  }
+  if (/out of memory|memory limit|allocation failed|quotaexceeded|array buffer allocation/i.test(lower)) {
+    return `${action} ran out of memory on this device. Try fewer files, smaller files, or close other tabs and retry.`;
+  }
+  if (/failed to fetch|networkerror|loading chunk|import\(\).*failed|pdf processing engine/i.test(lower)) {
+    return "The PDF processing tools could not load. Check your internet connection, reload this page, and retry.";
+  }
+  if (/invalidpdfexception|missingpdfexception|invalid pdf|malformed|unexpected eof|xref|cross.?reference|pdf header|file is corrupted/i.test(lower)) {
+    return `${subject} could not be read as a valid PDF. Open it in a PDF reader and save a fresh copy, then retry.`;
+  }
+  if (/unsupported|not supported|decode|encoding|image format|could not read image/i.test(lower)) {
+    return `${action} could not read ${subject}. Try opening it in another app and saving it as a supported PDF or image format.`;
+  }
+
+  // Preserve useful messages created by the tool itself; hide low-level JS errors.
+  const isTechnical = /^(typeerror|referenceerror|syntaxerror|rangeerror|unknownerror):/i.test(message) ||
+    /(?:\.js:\d+| at (?:async )?[\w$.]+\s*\(|cannot read properties of undefined|is not a function)/i.test(message);
+  if (message && !isTechnical && message.length <= 220) return message;
+  return `${action} could not finish. Check that ${subject} opens correctly, then retry with a smaller file if needed.`;
+}
+
 function wireDropzone(dropzone, input, addFn) {
-  dropzone.addEventListener("click", () => input.click());
-  dropzone.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") input.click(); });
-  input.addEventListener("change", () => { addFn(input.files); input.value = ""; });
+  dropzone.addEventListener("click", () => { if (!input.disabled) input.click(); });
+  dropzone.addEventListener("keydown", (e) => { if (!input.disabled && (e.key === "Enter" || e.key === " ")) input.click(); });
+  input.addEventListener("change", () => {
+    addFn(input.files);
+    input.value = "";
+  });
   ["dragenter", "dragover"].forEach((ev) =>
     dropzone.addEventListener(ev, (e) => { e.preventDefault(); dropzone.classList.add("dragover"); }));
   ["dragleave", "drop"].forEach((ev) =>
     dropzone.addEventListener(ev, (e) => { e.preventDefault(); dropzone.classList.remove("dragover"); }));
-  dropzone.addEventListener("drop", (e) => addFn(e.dataTransfer.files));
+  dropzone.addEventListener("drop", (e) => { if (!input.disabled) addFn(e.dataTransfer.files); });
+}
+
+function setToolBusy(busy) {
+  const selector = "#dropzone button, #toolbar button, #organizerToolbar button, #numberOptions button, #themePanel button, #workspaceOverlay button, #organizerWorkspace button, #cropOverlay button";
+  document.querySelectorAll(selector).forEach((button) => {
+    if (busy) {
+      if (!button.hasAttribute("data-was-disabled")) button.dataset.wasDisabled = button.disabled ? "true" : "false";
+      button.disabled = true;
+    } else if (button.hasAttribute("data-was-disabled")) {
+      button.disabled = button.dataset.wasDisabled === "true";
+      delete button.dataset.wasDisabled;
+    }
+  });
+  document.querySelectorAll('#fileInput, #imageInput, #replaceImageInput, #themePanel input').forEach((input) => {
+    if (busy) { input.dataset.wasDisabled = input.disabled ? "true" : "false"; input.disabled = true; }
+    else if (input.hasAttribute("data-was-disabled")) {
+      input.disabled = input.dataset.wasDisabled === "true";
+      delete input.dataset.wasDisabled;
+    }
+  });
+  document.querySelectorAll(".file-strip-wrap, #pageGrid, #editorGrid").forEach((surface) => {
+    if (busy) {
+      if (!surface.hasAttribute("data-was-pointer-events")) surface.dataset.wasPointerEvents = surface.style.pointerEvents || "";
+      surface.style.pointerEvents = "none";
+    } else if (surface.hasAttribute("data-was-pointer-events")) {
+      surface.style.pointerEvents = surface.dataset.wasPointerEvents;
+      delete surface.dataset.wasPointerEvents;
+    }
+  });
+  const status = document.getElementById("status");
+  if (status) {
+    status.classList.toggle("working", busy);
+    if (busy) status.setAttribute("aria-busy", "true");
+    else status.removeAttribute("aria-busy");
+  }
 }
 
 /* ---------- Result bar (download + preview) ---------- */
@@ -351,27 +436,65 @@ function hideResultBar() {
   bar.hidden = true;
 }
 
-function showResult(blob, filename) {
+function wireStartAnother(input, reset) {
+  const button = document.getElementById("newJobBtn");
+  if (!button) return;
+  button.addEventListener("click", () => {
+    hideResultBar();
+    if (typeof reset === "function") reset();
+    if (input) input.click();
+  });
+}
+
+function showResult(blob, filename, extension = "pdf") {
   const bar = document.getElementById("resultBar");
+  if (!bar) throw new Error("The result area is missing. Reload this page and retry.");
   if (bar._resultUrl) URL.revokeObjectURL(bar._resultUrl);
   const url = URL.createObjectURL(blob);
   bar._resultUrl = url;
-  document.getElementById("downloadBtn").onclick = () => {
+  const download = document.getElementById("downloadBtn");
+  if (!download) throw new Error("The download button is missing. Reload this page and retry.");
+  download.onclick = () => {
     const a = document.createElement("a");
     a.href = url;
     const nameInput = document.getElementById("fileName");
     const given = nameInput && nameInput.value.trim();
     a.download = (given ? given.trim() : "") || filename || "swiftpdf";
-    if (!/\.pdf$/i.test(a.download)) a.download += ".pdf";
+    if (!a.download.toLowerCase().endsWith("." + extension)) a.download += "." + extension;
     a.click();
   };
-  const preview = document.getElementById("previewBtn");
-  if (preview) preview.onclick = () => window.open(url, "_blank");
+  let preview = document.getElementById("previewBtn");
+  if (extension === "pdf" && !preview) {
+    preview = document.createElement("button");
+    preview.type = "button";
+    preview.id = "previewBtn";
+    preview.className = "btn btn-ghost";
+    preview.textContent = "Preview PDF";
+    const actions = download.parentElement;
+    if (actions && actions !== bar) actions.insertBefore(preview, download);
+    else bar.insertBefore(preview, download);
+  }
+  if (preview) {
+    preview.setAttribute("aria-label", `Preview ${extension.toUpperCase()} output`);
+    preview.onclick = () => {
+      const opened = window.open(url, "_blank");
+      if (!opened) setStatus("Your browser blocked the preview window. Allow pop-ups for this site or download the file.", "error");
+      else opened.opener = null;
+    };
+  }
+  const ext = document.querySelector(".result-bar .name-ext");
+  if (ext) ext.textContent = "." + extension;
   bar.hidden = false;
+  bar.tabIndex = -1;
+  bar.setAttribute("role", "region");
+  bar.setAttribute("aria-label", `${extension.toUpperCase()} result ready`);
   bar.classList.remove("revealed");
   void bar.offsetWidth;
   bar.classList.add("revealed");
-  setStatus("Your PDF is ready.", "success");
+  setStatus(`Your ${extension.toUpperCase()} is ready. Preview it or download it.`, "success");
+  bar.focus({ preventScroll: true });
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  bar.scrollIntoView({ behavior: reducedMotion ? "instant" : "smooth", block: "nearest" });
   return url;
 }
 
@@ -406,8 +529,7 @@ function buildPdf(pages) {
   const imgObj = (i) => 3 + n + i * 2;
   const contentObj = (i) => 4 + n + i * 2;
 
-  const pageW = 595.28, pageH = 841.89, margin = 24;
-  const maxW = pageW - margin * 2, maxH = pageH - margin * 2;
+  const defaultPageW = 595.28, defaultPageH = 841.89;
 
   write("%PDF-1.4\n%\xe2\xe3\xcf\xd3\n");
 
@@ -419,6 +541,12 @@ function buildPdf(pages) {
 
   pages.forEach((p, i) => {
     const jpegBytes = dataUrlBytes(p.dataUrl);
+    // Most image-to-PDF pages use A4; PDF compression can supply original page dimensions.
+    const pageW = Number.isFinite(p.pageWidth) && p.pageWidth > 0 ? p.pageWidth : defaultPageW;
+    const pageH = Number.isFinite(p.pageHeight) && p.pageHeight > 0 ? p.pageHeight : defaultPageH;
+    const requestedMargin = Number.isFinite(p.margin) ? Math.max(0, p.margin) : 24;
+    const margin = Math.min(requestedMargin, pageW / 2, pageH / 2);
+    const maxW = Math.max(1, pageW - margin * 2), maxH = Math.max(1, pageH - margin * 2);
     const scale = Math.min(maxW / p.w, maxH / p.h);
     const w = p.w * scale, h = p.h * scale;
     const x = (pageW - w) / 2, y = (pageH - h) / 2;
@@ -455,27 +583,36 @@ function toJpegPage(file, crop) {
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
-      URL.revokeObjectURL(url);
-      const maxSide = 4096;
-      let cx = 0, cy = 0, cw = img.naturalWidth, ch = img.naturalHeight;
-      if (crop) {
-        cx = Math.min(crop.x, img.naturalWidth - 1);
-        cy = Math.min(crop.y, img.naturalHeight - 1);
-        cw = Math.max(1, Math.min(crop.w, img.naturalWidth - cx));
-        ch = Math.max(1, Math.min(crop.h, img.naturalHeight - cy));
+      try {
+        URL.revokeObjectURL(url);
+        if (!img.naturalWidth || !img.naturalHeight) throw new Error("The image has no readable pixels.");
+        const maxSide = 4096;
+        let cx = 0, cy = 0, cw = img.naturalWidth, ch = img.naturalHeight;
+        if (crop) {
+          cx = Math.max(0, Math.min(Number(crop.x) || 0, img.naturalWidth - 1));
+          cy = Math.max(0, Math.min(Number(crop.y) || 0, img.naturalHeight - 1));
+          cw = Math.max(1, Math.min(Number(crop.w) || 1, img.naturalWidth - cx));
+          ch = Math.max(1, Math.min(Number(crop.h) || 1, img.naturalHeight - cy));
+        }
+        const scale = Math.min(1, maxSide / Math.max(cw, ch));
+        const w = Math.max(1, Math.round(cw * scale));
+        const h = Math.max(1, Math.round(ch * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext("2d", { alpha: false });
+        if (!ctx) throw new Error("This browser could not prepare the image.");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, cx, cy, cw, ch, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+        canvas.width = 0; canvas.height = 0;
+        resolve({ dataUrl, w, h });
+      } catch (err) {
+        URL.revokeObjectURL(url);
+        reject(new Error(`Could not convert ${file.name}. This image format may not be supported by your browser.`));
       }
-      const scale = Math.min(1, maxSide / Math.max(cw, ch));
-      const w = Math.max(1, Math.round(cw * scale));
-      const h = Math.max(1, Math.round(ch * scale));
-      const canvas = document.createElement("canvas");
-      canvas.width = w; canvas.height = h;
-      const ctx = canvas.getContext("2d");
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, w, h);
-      ctx.drawImage(img, cx, cy, cw, ch, 0, 0, w, h);
-      resolve({ dataUrl: canvas.toDataURL("image/jpeg", 0.92), w, h });
     };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Could not read image: " + file.name)); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error(`Could not read image ${file.name}. Try a browser-supported image format.`)); };
     img.src = url;
   });
 }
@@ -483,31 +620,55 @@ function toJpegPage(file, crop) {
 /* ---------- pdf.js loader ---------- */
 const PDFJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
 const PDFJS_WORKER_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+let pdfJsLoadPromise = null;
 
 function loadPdfJs() {
   if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
-  return new Promise((resolve, reject) => {
+  if (pdfJsLoadPromise) return pdfJsLoadPromise;
+  pdfJsLoadPromise = new Promise((resolve, reject) => {
     const s = document.createElement("script");
     s.src = PDFJS_URL;
     s.onload = () => {
+      if (!window.pdfjsLib) return reject(new Error("The PDF engine loaded but could not be initialized."));
       window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
       resolve(window.pdfjsLib);
     };
     s.onerror = () => reject(new Error("Could not load the PDF engine. Check your internet connection and reload."));
     document.head.appendChild(s);
-  });
+  }).catch((error) => { pdfJsLoadPromise = null; throw error; });
+  return pdfJsLoadPromise;
 }
 
 /* ---------- pdf-lib loader ---------- */
 const PDFLIB_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js";
+let pdfLibLoadPromise = null;
 
 function loadPdfLib() {
   if (window.PDFLib) return Promise.resolve(window.PDFLib);
-  return new Promise((resolve, reject) => {
+  if (pdfLibLoadPromise) return pdfLibLoadPromise;
+  pdfLibLoadPromise = new Promise((resolve, reject) => {
     const s = document.createElement("script");
     s.src = PDFLIB_URL;
-    s.onload = () => resolve(window.PDFLib);
+    s.onload = () => window.PDFLib ? resolve(window.PDFLib) : reject(new Error("The PDF engine loaded but could not be initialized."));
     s.onerror = () => reject(new Error("Could not load the PDF engine. Check your internet connection and reload."));
     document.head.appendChild(s);
-  });
+  }).catch((error) => { pdfLibLoadPromise = null; throw error; });
+  return pdfLibLoadPromise;
+}
+
+/* ---------- JSZip loader ---------- */
+const JSZIP_URL = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+let jsZipLoadPromise = null;
+
+function loadJsZip() {
+  if (window.JSZip) return Promise.resolve(window.JSZip);
+  if (jsZipLoadPromise) return jsZipLoadPromise;
+  jsZipLoadPromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = JSZIP_URL;
+    s.onload = () => window.JSZip ? resolve(window.JSZip) : reject(new Error("Could not load the ZIP engine."));
+    s.onerror = () => reject(new Error("Could not load the ZIP engine. Check your internet connection and reload."));
+    document.head.appendChild(s);
+  }).catch((error) => { jsZipLoadPromise = null; throw error; });
+  return jsZipLoadPromise;
 }

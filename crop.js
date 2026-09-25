@@ -17,7 +17,11 @@ function openCrop(file) {
       overlay.hidden = false;
       setupCropUI(img, resolve, file);
     };
-    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      setStatus(`Could not open ${file.name}. Try an image format supported by your browser.`, "error");
+      resolve(null);
+    };
     img.src = url;
   });
 }
@@ -41,7 +45,15 @@ function setupCropUI(img, resolve, file) {
     canvas.width = W; canvas.height = H;
     canvas.style.width = W + "px";
     canvas.style.height = H + "px";
-    canvas.getContext("2d").drawImage(img, 0, 0, W, H);
+    const context = canvas.getContext("2d");
+    if (!context) {
+      overlay.hidden = true;
+      setStatus("This browser could not prepare the crop preview.", "error");
+      cropState = null;
+      resolve(null);
+      return;
+    }
+    context.drawImage(img, 0, 0, W, H);
 
     const r = { x: W * 0.075, y: H * 0.075, w: W * 0.85, h: H * 0.85 };
     cropState = { canvas, box, img, resolve, scale, W, H, r, drag: null, file };
@@ -68,17 +80,21 @@ function drawCropPreview() {
   const pv = document.getElementById("cropPreview");
   if (!pv || !cropState || !cropState.img) return;
   const { img, scale, r } = cropState;
-  const boxW = 220, boxH = 150;
-  const rw = Math.max(1, r.w), rh = Math.max(1, r.h);
-  // scale so the crop fills the preview box ("intense" zoom = actual pixels)
-  const s = Math.min(boxW / rw, boxH / rh);
-  pv.width = Math.round(rw * s);
-  pv.height = Math.round(rh * s);
+  const boxW = 360, boxH = 260;
+  const sx = r.x / scale, sy = r.y / scale;
+  const sw = r.w / scale, sh = r.h / scale;
+  const s = Math.min(boxW / sw, boxH / sh);
+  pv.width = Math.max(1, Math.round(sw * s));
+  pv.height = Math.max(1, Math.round(sh * s));
   pv.style.width = pv.width + "px";
   pv.style.height = pv.height + "px";
   const ctx = pv.getContext("2d");
+  if (!ctx) return;
   ctx.imageSmoothingEnabled = true;
-  ctx.drawImage(cropState.canvas, r.x, r.y, rw, rh, 0, 0, pv.width, pv.height);
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, pv.width, pv.height);
+  const dimensions = document.getElementById("cropDimensions");
+  if (dimensions) dimensions.textContent = `${Math.round(sw)} × ${Math.round(sh)} px`;
 }
 
 function stagePos(e) {
@@ -165,7 +181,14 @@ function saveCroppedImage() {
   const out = document.createElement("canvas");
   out.width = w;
   out.height = h;
-  out.getContext("2d").drawImage(img, x, y, w, h, 0, 0, w, h);
+  const context = out.getContext("2d", { alpha: false });
+  if (!context) {
+    setStatus("This browser could not prepare the cropped image.", "error");
+    return;
+  }
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, w, h);
+  context.drawImage(img, x, y, w, h, 0, 0, w, h);
   const base = (file && file.name ? file.name.replace(/\.[^.]+$/, "") : "image") + "-cropped.jpg";
   out.toBlob((blob) => {
     if (!blob) return;

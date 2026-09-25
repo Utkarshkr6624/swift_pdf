@@ -5,7 +5,6 @@ const stripEl = document.getElementById("fileStrip");
 const toolbar = document.getElementById("toolbar");
 const compressBtn = document.getElementById("compressBtn");
 const clearBtn = document.getElementById("clearBtn");
-const resultBar = document.getElementById("resultBar");
 
 const QUALITY = {
   small: { scale: 1.2, jpeg: 0.5, label: "Smallest" },
@@ -23,6 +22,7 @@ document.querySelectorAll(".pill").forEach((pill) => {
 
 const strip = createFileStrip({ input: fileInput, stripEl, accept: "pdf", toolbar });
 wireDropzone(dropzone, fileInput, (f) => strip.addFiles(f));
+wireStartAnother(fileInput, () => strip.clear());
 
 clearBtn.addEventListener("click", () => strip.clear());
 
@@ -30,8 +30,10 @@ compressBtn.addEventListener("click", async () => {
   const items = strip.items;
   if (!items.length) return;
   const q = QUALITY[quality];
+  setToolBusy(true);
   compressBtn.disabled = true;
-  resultBar.hidden = true;
+  hideResultBar();
+  setStatus("Loading PDF engine…");
 
   try {
     const pdfjs = await loadPdfJs();
@@ -41,15 +43,33 @@ compressBtn.addEventListener("click", async () => {
     for (const item of items) {
       const data = await item.file.arrayBuffer();
       const pdf = await pdfjs.getDocument({ data }).promise;
-      for (let p = 1; p <= pdf.numPages; p++) {
-        const page = await pdf.getPage(p);
-        const viewport = page.getViewport({ scale: q.scale });
-        const canvas = document.createElement("canvas");
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
-        pages.push({ dataUrl: canvas.toDataURL("image/jpeg", q.jpeg), w: viewport.width, h: viewport.height });
-        setStatus(`Re-encoding page ${pages.length}…`);
+      try {
+        for (let p = 1; p <= pdf.numPages; p++) {
+          const page = await pdf.getPage(p);
+          const pageSize = page.getViewport({ scale: 1 });
+          const viewport = page.getViewport({ scale: q.scale });
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.ceil(viewport.width);
+          canvas.height = Math.ceil(viewport.height);
+          try {
+            await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+            pages.push({
+              dataUrl: canvas.toDataURL("image/jpeg", q.jpeg),
+              w: canvas.width,
+              h: canvas.height,
+              pageWidth: pageSize.width,
+              pageHeight: pageSize.height,
+              margin: 0,
+            });
+          } finally {
+            page.cleanup();
+            canvas.width = 0;
+            canvas.height = 0;
+          }
+          setStatus(`Re-encoding page ${pages.length}…`);
+        }
+      } finally {
+        await pdf.destroy();
       }
     }
 
@@ -67,6 +87,7 @@ compressBtn.addEventListener("click", async () => {
     setStatus(err.message || "Compression failed. Please try again.", "error");
   } finally {
     compressBtn.disabled = false;
+    setToolBusy(false);
   }
 });
 // workspace (edit files)

@@ -17,44 +17,61 @@ document.querySelectorAll(".pill").forEach((pill) => {
 
 const strip = createFileStrip({ input: fileInput, stripEl, accept: "pdf", toolbar });
 wireDropzone(dropzone, fileInput, (f) => strip.addFiles(f));
+wireStartAnother(fileInput, () => strip.clear());
 
 clearBtn.addEventListener("click", () => strip.clear());
 
 convertBtn.addEventListener("click", async () => {
   const items = strip.items;
   if (!items.length) return;
+  setToolBusy(true);
   convertBtn.disabled = true;
+  hideResultBar();
   setStatus("Rendering pages…");
 
   try {
     const pdfjs = await loadPdfJs();
+    const JSZip = await loadJsZip();
+    const zip = new JSZip();
     let total = 0;
-    for (const item of items) {
+    for (let fileIndex = 0; fileIndex < items.length; fileIndex++) {
+      const item = items[fileIndex];
       const data = await item.file.arrayBuffer();
       const pdf = await pdfjs.getDocument({ data }).promise;
-      for (let p = 1; p <= pdf.numPages; p++) {
-        const page = await pdf.getPage(p);
-        const viewport = page.getViewport({ scale });
-        const canvas = document.createElement("canvas");
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
-        const base = items.length > 1 ? item.file.name.replace(/\.pdf$/i, "") + "-" : "";
-        const link = document.createElement("a");
-        link.href = canvas.toDataURL("image/png");
-        link.download = base + "page-" + p + ".png";
-        link.click();
-        total++;
-        setStatus(`Rendering pages… ${total} done`, "success");
-        await new Promise((r) => setTimeout(r, 150)); // let the browser handle multiple downloads
+      try {
+        for (let p = 1; p <= pdf.numPages; p++) {
+          const page = await pdf.getPage(p);
+          const viewport = page.getViewport({ scale });
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.ceil(viewport.width);
+          canvas.height = Math.ceil(viewport.height);
+          try {
+            await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+            const png = await new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not create a PNG for page " + p + ".")), "image/png"));
+            const base = item.file.name.replace(/\.pdf$/i, "").replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || "document";
+            const prefix = items.length > 1 ? String(fileIndex + 1).padStart(2, "0") + "-" : "";
+            zip.file(prefix + base + "-page-" + String(p).padStart(3, "0") + ".png", png);
+            total++;
+            setStatus(`Rendering pages… ${total} ready`, "");
+          } finally {
+            page.cleanup();
+            canvas.width = 0;
+            canvas.height = 0;
+          }
+        }
+      } finally {
+        await pdf.destroy();
       }
     }
-    setStatus(`Done — ${total} image${total === 1 ? "" : "s"} downloaded.`, "success");
+    const blob = await zip.generateAsync({ type: "blob" }, (meta) => setStatus(`Packing images… ${Math.round(meta.percent)}%`));
+    showResult(blob, "pdf-images.zip", "zip");
+    setStatus(`Done — ${total} image${total === 1 ? "" : "s"} packed into one ZIP download.`, "success");
   } catch (err) {
     console.error(err);
     setStatus(err.message || "Conversion failed. Please try again.", "error");
   } finally {
     convertBtn.disabled = false;
+    setToolBusy(false);
   }
 });
 // workspace (edit files)

@@ -8,8 +8,8 @@
      <!-- adds -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script>(function(){var t=localStorage.getItem("swiftpdf-theme");if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content=t;})();</script>
-  <title>SwiftPDF — Free PDF Tools: Convert, Merge, Compress</title>
+  <script>(function(){var t=null;try{t=localStorage.getItem("swiftpdf-theme")}catch(e){}if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content=t;})();</script>
+  <title>SwiftPDF — Free Private PDF Tools</title>
   <meta name="color-scheme" content="light dark" />
   <meta name="keywords" content="pdf tools, image to pdf, jpg to pdf, merge pdf, compress pdf, pdf to image, free pdf converter" />
   <meta name="robots" content="index, follow" />
@@ -19,19 +19,19 @@
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="en_US" />
   <meta property="og:site_name" content="SwiftPDF" />
-  <meta property="og:title" content="SwiftPDF — Free PDF Tools: Convert, Merge, Compress" />
-  <meta property="og:description" content="Convert images to PDF, merge, compress and unlock PDFs, and remove PDF watermark annotations. Free tools that process files in your browser." />
+  <meta property="og:title" content="SwiftPDF — Free Private PDF Tools" />
+  <meta property="og:description" content="Convert images and camera photos to PDF, organize and recolor pages, merge or compress files with free private browser tools." />
   <meta property="og:url" content="https://swift-pdf-beta.vercel.app/" />
   <meta property="og:image" content="https://swift-pdf-beta.vercel.app/og-image.png" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="SwiftPDF — Free PDF Tools: Convert, Merge, Compress" />
-  <meta name="twitter:description" content="Convert images to PDF, merge, compress and unlock PDFs, and remove PDF watermark annotations. Free tools that process files in your browser." />
+  <meta name="twitter:title" content="SwiftPDF — Free Private PDF Tools" />
+  <meta name="twitter:description" content="Convert images and camera photos to PDF, organize and recolor pages, merge or compress files with free private browser tools." />
   <meta name="twitter:image" content="https://swift-pdf-beta.vercel.app/og-image.png" />
-  <meta name="description" content="Convert images to PDF, merge, compress and unlock PDFs, and remove PDF watermark annotations. Free tools that process files in your browser." />
+  <meta name="description" content="Convert images and camera photos to PDF, organize and recolor pages, merge or compress files with free private browser tools." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
+  
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27><rect width=%2732%27 height=%2732%27 rx=%279%27 fill=%27%232f6bff%27/><path d=%27M10 6h8l5 5v15h-13z%27 fill=%27%23fff%27/></svg>" />
   <script type="application/ld+json">
   {
@@ -41,15 +41,19 @@
     "url": "https://swift-pdf-beta.vercel.app/",
     "applicationCategory": "UtilitiesApplication",
     "operatingSystem": "Any",
-    "description": "Free browser tools to convert images to PDF, convert PDF pages to images, merge and compress PDFs, remove watermark annotations, and unlock PDF restrictions.",
+    "description": "Free browser tools to convert images and camera photos to PDF, convert PDF pages to images, organize, split, extract, number, and recolor PDF pages, merge and compress PDFs.",
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
     "featureList": [
-      "Convert JPG, PNG and WebP images to PDF",
+      "Convert JPG, PNG and WebP images or camera photos to PDF",
       "Merge multiple PDFs into one",
       "Compress PDF file size",
       "Convert PDF pages to PNG images",
       "Remove PDF watermark annotations",
-      "Unlock PDF files with permission restrictions"
+      "Unlock PDF files with permission restrictions",
+      "Reorder, rotate, split, and extract PDF pages",
+      "Crop PDF pages and add image pages to PDFs",
+      "Add page numbers to PDFs",
+      "Recolor PDF pages with preset or custom colors and preview the result"
     ],
     "audience": { "@type": "Audience", "audienceType": "General users" }
   }
@@ -59,13 +63,18 @@
     "@context": "https://schema.org",
     "@type": "FAQPage",
     "mainEntity": [
-      {"@type": "Question", "name": "Are my files uploaded anywhere?", "acceptedAnswer": {"@type": "Answer", "text": "No. Every tool runs inside your browser using JavaScript. Your images and PDFs never leave your device."}},
-      {"@type": "Question", "name": "Is SwiftPDF free?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, completely free, with no accounts and no limits on the number of files you convert."}},
-      {"@type": "Question", "name": "How do I convert JPG images to one PDF?", "acceptedAnswer": {"@type": "Answer", "text": "Open the Image to PDF tool, drop in your images, arrange their order, and click Convert to PDF."}},
+      {"@type": "Question", "name": "Are my files uploaded anywhere?", "acceptedAnswer": {"@type": "Answer", "text": "No. Your images and PDFs are processed in your browser and are not uploaded to SwiftPDF. PDF tools may need an internet connection to load their processing libraries."}},
+      {"@type": "Question", "name": "Is SwiftPDF free?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. SwiftPDF is free to use and does not require an account. The number and size of files a browser can process depend on the device's available memory."}},
+      {"@type": "Question", "name": "How do I convert images to one PDF?", "acceptedAnswer": {"@type": "Answer", "text": "Open the Image to PDF tool, add browser-supported image files or capture photos, arrange them in the edit view, and click Convert to PDF. The whole process takes place on your device."}},
+      {"@type": "Question", "name": "Can I take a photo directly for my PDF?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Open Image to PDF and choose Take a photo. Allow camera access to use the live preview, or choose Camera / photo picker for your device's capture and photo options. Live camera access requires a secure site connection such as HTTPS or localhost."}},
       {"@type": "Question", "name": "Can I merge Word or PowerPoint files?", "acceptedAnswer": {"@type": "Answer", "text": "Not yet. Export them to PDF first, then merge them with the Merge PDF tool."}}
+      ,{"@type": "Question", "name": "Can I reorder or extract pages from a PDF?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Use Organize PDF Pages to reorder, rotate, remove, split, or extract pages in your browser."}}
+      ,{"@type": "Question", "name": "Can I add page numbers to a PDF?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Use Add Page Numbers to choose the starting number, size, and position."}}
+      ,{"@type": "Question", "name": "Can I change a PDF to dark mode or custom colors?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Change PDF Theme offers dark, sepia, midnight blue, sage, and custom primary, secondary, and text colors. Preview the pages before downloading. The pages are saved as images, so text is no longer selectable."}}
     ]
   }
   </script>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <nav class="nav">
@@ -101,13 +110,22 @@
 
   <main>
     <section class="home-hero">
-      <div class="container">
-        <h1>The PDF toolkit that never <em>uploads</em> your files.</h1>
-        <p>Every tool below runs entirely inside your browser. Pick one, drop your files, download the result — nothing is ever sent to a server.</p>
+      <div class="container home-hero-layout">
+        <div class="home-copy">
+          <span class="home-eyebrow">SWIFTPDF <span aria-hidden="true">/</span> PRIVATE BY DESIGN</span>
+          <h1>PDF tools.<br><em>No upload. No fuss.</em></h1>
+          <p>Convert, merge and organize PDFs in your browser. Your files stay on your device from start to finish.</p>
+          <a class="hero-link" href="#tools">Explore the tools <span aria-hidden="true">↓</span></a>
+        </div>
+        <aside class="hero-facts" aria-label="What to expect from SwiftPDF">
+          <div class="hero-fact"><span class="hero-fact-number">01</span><p><strong>Files stay local</strong><small>Your documents stay on your device.</small></p></div>
+          <div class="hero-fact"><span class="hero-fact-number">02</span><p><strong>No account needed</strong><small>Open a tool and get straight to work.</small></p></div>
+          <div class="hero-fact"><span class="hero-fact-number">09</span><p><strong>Useful PDF tools</strong><small>Convert, merge, organize, and more.</small></p></div>
+        </aside>
       </div>
     </section>
 
-    <section class="tools-section">
+    <section class="tools-section" id="tools">
       <div class="container">
         <h2>Tools</h2>
         <div class="tool-list">
@@ -115,14 +133,14 @@
             <span class="tool-glyph">JPG</span>
             <span>
               <h3>Image to PDF</h3>
-              <p>Combine JPG, PNG or WebP images into one PDF, in your chosen order.</p>
+              <p>Combine supported image files or capture photos, then crop and arrange them into a PDF.</p>
             </span>
           </a>
           <a class="tool-row" href="pdf-to-image.html">
             <span class="tool-glyph">PNG</span>
             <span>
               <h3>PDF to Image</h3>
-              <p>Turn each page of a PDF into a PNG image and download them.</p>
+              <p>Turn each page of a PDF into a PNG image and download all pages in one ZIP.</p>
             </span>
           </a>
           <a class="tool-row" href="merge-pdf.html">
@@ -153,28 +171,63 @@
               <p>Remove PDF restrictions or unlock a file with its open password.</p>
             </span>
           </a>
+          <a class="tool-row" href="organize-pdf.html">
+            <span class="tool-glyph">P</span>
+            <span><h3>Organize PDF Pages</h3><p>Reorder, rotate, remove, split or extract pages.</p></span>
+          </a>
+          <a class="tool-row" href="page-numbers.html">
+            <span class="tool-glyph">#</span>
+            <span><h3>Add Page Numbers</h3><p>Add page numbers in your choice of position and size.</p></span>
+          </a>
+          <a class="tool-row" href="pdf-themes.html">
+            <span class="tool-glyph">◐</span>
+            <span><h3>Change PDF Theme</h3><p>Use preset or custom colors, then preview pages before downloading.</p></span>
+          </a>
         </div>
       </div>
     </section>
-    <section class="faq-section">
-      <div class="container">
-        <h2>Questions people ask</h2>
-        <details class="faq-item">
-          <summary>Are my files uploaded anywhere?</summary>
-          <p>No. Every tool runs inside your browser using JavaScript. Your images and PDFs never leave your device — you could even disconnect from the internet and most tools would still work.</p>
-        </details>
-        <details class="faq-item">
-          <summary>Is SwiftPDF free?</summary>
-          <p>Yes, completely free, with no accounts, no watermarks and no limits on how many files you convert.</p>
-        </details>
-        <details class="faq-item">
-          <summary>How do I convert JPG images to one PDF?</summary>
-          <p>Open the Image to PDF tool, drop in your images, arrange their order in the edit view, and click Convert to PDF. The whole process takes a few seconds.</p>
-        </details>
-        <details class="faq-item">
-          <summary>Can I merge Word or PowerPoint files?</summary>
-          <p>Not yet — converting Office documents needs a server. Export them to PDF first (File → Save as PDF in Word or PowerPoint), then merge them here.</p>
-        </details>
+    <section class="faq-section" id="faq">
+      <div class="container faq-layout">
+        <div class="faq-intro">
+          <p class="section-kicker">A FEW QUICK ANSWERS</p>
+          <h2><span>Good to </span><br><span>know.</span></h2>
+          <p>Here are the things people usually want to know before they start.</p>
+          <a class="faq-contact" href="contact.html">Still need help? <span>Talk to us&nbsp;↗</span></a>
+        </div>
+        <div class="faq-list">
+          <details class="faq-item">
+            <summary>Are my files uploaded anywhere?</summary>
+            <p>No. Your images and PDFs are processed in your browser and are not uploaded to SwiftPDF. PDF tools may need an internet connection to load their processing libraries.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Is SwiftPDF free?</summary>
+            <p>Yes. SwiftPDF is free to use and does not require an account. The number and size of files a browser can process depend on the device's available memory.</p>
+          </details>
+          <details class="faq-item">
+            <summary>How do I convert JPG images to one PDF?</summary>
+            <p>Open the Image to PDF tool, add or capture photos, arrange their order in the edit view, and click Convert to PDF. The whole process takes place on your device.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Can I take a photo directly for my PDF?</summary>
+            <p>Yes. Open Image to PDF and choose Take a photo. Allow camera access to use the live preview, or choose Camera / photo picker for your device's capture and photo options. Live camera access requires a secure site connection such as HTTPS or localhost.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Can I merge Word or PowerPoint files?</summary>
+            <p>Not yet — converting Office documents needs a server. Export them to PDF first (File → Save as PDF in Word or PowerPoint), then merge them here.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Can I reorder or extract pages from a PDF?</summary>
+            <p>Yes. Open Organize PDF Pages to reorder, rotate, remove, split, or extract pages in your browser.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Can I add page numbers to a PDF?</summary>
+            <p>Yes. Use Add Page Numbers to choose where the numbers go, their size, and the starting number.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Can I change a PDF to dark mode?</summary>
+            <p>Yes. Change PDF Theme offers preset palettes or your own primary, secondary, and text colors, with a page-by-page preview before download. The themed pages are saved as images, so text is no longer selectable.</p>
+          </details>
+        </div>
       </div>
     </section>
   </main>

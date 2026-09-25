@@ -3,20 +3,21 @@ const fileInput = document.getElementById("fileInput");
 const toolbar = document.getElementById("toolbar");
 const strip = createFileStrip({ input: fileInput, stripEl: document.getElementById("fileStrip"), accept: "pdf", toolbar });
 const convertBtn = document.getElementById("convertBtn");
-const resultBar = document.getElementById("resultBar");
 const passwordInput = document.getElementById("openPassword");
 
 wireDropzone(dropzone, fileInput, (files) => {
   strip.clear();
   strip.addFiles(Array.from(files).slice(0, 1));
-  resultBar.hidden = true;
+  hideResultBar();
 });
+wireStartAnother(fileInput, () => { strip.clear(); passwordInput.value = ""; });
 
 convertBtn.addEventListener("click", async () => {
   const item = strip.items[0];
   if (!item) return;
+  setToolBusy(true);
   convertBtn.disabled = true;
-  resultBar.hidden = true;
+  hideResultBar();
   setStatus("Unlocking PDF…");
   try {
     const inputBytes = await item.file.arrayBuffer();
@@ -41,23 +42,32 @@ convertBtn.addEventListener("click", async () => {
         throw loadError;
       }
       const unlocked = await pdfLib.PDFDocument.create();
-      for (let pageNo = 1; pageNo <= doc.numPages; pageNo++) {
-        setStatus(`Creating unlocked copy — page ${pageNo} of ${doc.numPages}…`);
-        const page = await doc.getPage(pageNo);
-        const scale = Math.min(2, 2400 / Math.max(page.view[2] - page.view[0], page.view[3] - page.view[1]));
-        const viewport = page.getViewport({ scale });
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.ceil(viewport.width);
-        canvas.height = Math.ceil(viewport.height);
-        await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
-        const blob = await new Promise((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error("Could not render a PDF page.")), "image/jpeg", 0.94));
-        const image = await unlocked.embedJpg(await blob.arrayBuffer());
-        const outPage = unlocked.addPage([page.view[2] - page.view[0], page.view[3] - page.view[1]]);
-        outPage.drawImage(image, { x: 0, y: 0, width: outPage.getWidth(), height: outPage.getHeight() });
-        canvas.width = 0;
-        canvas.height = 0;
+      try {
+        for (let pageNo = 1; pageNo <= doc.numPages; pageNo++) {
+          setStatus(`Creating unlocked copy — page ${pageNo} of ${doc.numPages}…`);
+          const page = await doc.getPage(pageNo);
+          const scale = Math.min(2, 2400 / Math.max(page.view[2] - page.view[0], page.view[3] - page.view[1]));
+          const viewport = page.getViewport({ scale });
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.ceil(viewport.width);
+          canvas.height = Math.ceil(viewport.height);
+          try {
+            await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+            const blob = await new Promise((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error("Could not render a PDF page.")), "image/jpeg", 0.94));
+            const image = await unlocked.embedJpg(await blob.arrayBuffer());
+            const width = viewport.width / scale;
+            const height = viewport.height / scale;
+            const outPage = unlocked.addPage([width, height]);
+            outPage.drawImage(image, { x: 0, y: 0, width, height });
+          } finally {
+            page.cleanup();
+            canvas.width = 0;
+            canvas.height = 0;
+          }
+        }
+      } finally {
+        await doc.destroy();
       }
-      doc.destroy();
       showResult(new Blob([await unlocked.save()], { type: "application/pdf" }), "unlocked.pdf");
       setStatus("Unlocked copy created. Pages were flattened; selectable text and signatures are not preserved.", "success");
     }
@@ -66,5 +76,6 @@ convertBtn.addEventListener("click", async () => {
     setStatus(err.message || "Could not unlock this PDF. It may be damaged or use unsupported encryption.", "error");
   } finally {
     convertBtn.disabled = false;
+    setToolBusy(false);
   }
 });

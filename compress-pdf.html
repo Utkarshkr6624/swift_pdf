@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script>(function(){var t=localStorage.getItem("swiftpdf-theme");if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content=t;})();</script>
+  <script>(function(){var t=null;try{t=localStorage.getItem("swiftpdf-theme")}catch(e){}if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content=t;})();</script>
   <title>Compress PDF — Reduce PDF File Size Online Free | SwiftPDF</title>
   <meta name="description" content="Shrink PDF file size for free. Choose your compression level and download a smaller PDF instantly — all processing happens in your browser." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
+  
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27><rect width=%2732%27 height=%2732%27 rx=%279%27 fill=%27%232f6bff%27/><path d=%27M10 6h8l5 5v15h-13z%27 fill=%27%23fff%27/></svg>" />
   <meta name="keywords" content="compress pdf, reduce pdf size, shrink pdf, pdf compressor free" />
   <meta name="robots" content="index, follow" />
@@ -50,6 +50,7 @@
     ]
   }
   </script>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <nav class="nav">
@@ -121,6 +122,7 @@
           <span class="name-ext">.pdf</span>
         </div>
         <div style="display:flex; gap:10px;">
+          <button class="btn btn-ghost" id="newJobBtn" type="button">Start another</button>
           <button class="btn btn-ghost" id="previewBtn" type="button">Preview</button>
           <button class="btn btn-primary result-download" id="downloadBtn" type="button">&#8595; Download PDF</button>
         </div>

@@ -3,18 +3,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script>(function(){var t=localStorage.getItem("swiftpdf-theme");if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content=t;})();</script>
+  <meta name="color-scheme" content="light dark" />
+  <script>(function(){var t=null;try{t=localStorage.getItem("swiftpdf-theme")}catch(e){}if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content=t;var c=document.querySelector('meta[name="theme-color"]');if(c)c.content=t==="dark"?"#0d1118":"#f4f7fc";})();</script>
   <title>About SwiftPDF — Private, Browser-Based PDF Tools</title>
   <meta name="description" content="SwiftPDF is a free suite of PDF tools that process your files in your browser. No file uploads or accounts required." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
+  
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27><rect width=%2732%27 height=%2732%27 rx=%279%27 fill=%27%232f6bff%27/><path d=%27M10 6h8l5 5v15h-13z%27 fill=%27%23fff%27/></svg>" />
   <meta name="keywords" content="about swiftpdf, private pdf tools, browser pdf converter" />
   <meta name="robots" content="index, follow" />
   <meta name="author" content="SwiftPDF" />
-  <meta name="theme-color" content="#2f6bff" />
+  <meta name="theme-color" content="#f4f7fc" />
   <link rel="canonical" href="https://swift-pdf-beta.vercel.app/about.html" />
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="en_US" />
@@ -27,6 +28,7 @@
   <meta name="twitter:title" content="About SwiftPDF — Private, Browser-Based PDF Tools" />
   <meta name="twitter:description" content="SwiftPDF is a free suite of PDF tools that process your files in your browser. No file uploads or accounts required — learn how and why we built it." />
   <meta name="twitter:image" content="https://swift-pdf-beta.vercel.app/og-image.png" />
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <nav class="nav">
@@ -72,7 +74,7 @@
 
       <section>
         <h2>How it works</h2>
-        <p>Pick a tool, drop in your files, and download the result. Images are combined into an A4-sized PDF in the order you arrange them; PDFs can be merged, turned into images, or compressed by re-encoding their pages at a quality you choose.</p>
+        <p>Pick a tool, drop in your files, and download the result. Images can be cropped, reordered, and combined into a PDF. PDFs can be merged, compressed, converted to images, organized, split, extracted, and numbered in your browser.</p>
       </section>
 
       <section>
@@ -82,7 +84,7 @@
 
       <section>
         <h2>What's next</h2>
-        <p>PDF page rotation and reordering, splitting PDFs, and Office-file conversion are on the way. Got a tool you'd find useful? <a href="contact.html" style="color:var(--green);font-weight:600;">Tell us</a> — the next tools get built from what you ask for.</p>
+        <p>We keep improving the existing tools and adding features based on user feedback. Office-file conversion needs a server, so for now export Word or PowerPoint documents to PDF first. Got a tool you'd find useful? <a href="contact.html">Tell us</a>.</p>
       </section>
     </div>
   </main>

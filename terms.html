@@ -3,17 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script>(function(){var t=localStorage.getItem("swiftpdf-theme");if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content=t;})();</script>
+  <meta name="color-scheme" content="light dark" />
+  <script>(function(){var t=null;try{t=localStorage.getItem("swiftpdf-theme")}catch(e){}if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content=t;var c=document.querySelector('meta[name="theme-color"]');if(c)c.content=t==="dark"?"#0d1118":"#f4f7fc";})();</script>
   <title>Terms of Service — SwiftPDF</title>
   <meta name="description" content="SwiftPDF Terms of Service: rules and conditions for using SwiftPDF's browser-based PDF tools." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
+  
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27><rect width=%2732%27 height=%2732%27 rx=%279%27 fill=%27%232f6bff%27/><path d=%27M10 6h8l5 5v15h-13z%27 fill=%27%23fff%27/></svg>" />
   <meta name="robots" content="index, follow" />
   <meta name="author" content="SwiftPDF" />
-  <meta name="theme-color" content="#2f6bff" />
+  <meta name="theme-color" content="#f4f7fc" />
   <link rel="canonical" href="https://swift-pdf-beta.vercel.app/terms.html" />
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="en_US" />
@@ -26,6 +27,7 @@
   <meta name="twitter:title" content="Terms of Service — SwiftPDF" />
   <meta name="twitter:description" content="Read the Terms of Service for SwiftPDF's browser-based PDF tools." />
   <meta name="twitter:image" content="https://swift-pdf-beta.vercel.app/og-image.png" />
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <nav class="nav">

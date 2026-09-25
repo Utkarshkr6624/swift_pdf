@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script>(function(){var t=localStorage.getItem("swiftpdf-theme");if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t;})();</script>
+  <script>(function(){var t=null;try{t=localStorage.getItem("swiftpdf-theme")}catch(e){}if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t;})();</script>
   <title>Remove PDF Watermarks | SwiftPDF</title>
   <meta name="description" content="Remove watermark annotations from PDF files in your browser. Your files stay on your device." />
   <meta name="robots" content="index, follow" />
@@ -23,9 +23,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
+  
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27><rect width=%2732%27 height=%2732%27 rx=%279%27 fill=%27%232f6bff%27/><path d=%27M10 6h8l5 5v15h-13z%27 fill=%27%23fff%27/></svg>" />
   <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebApplication","name":"Remove PDF Watermarks - SwiftPDF","url":"https://swift-pdf-beta.vercel.app/remove-watermark.html","applicationCategory":"UtilitiesApplication","operatingSystem":"Any","description":"Remove watermark annotations from PDF files in your browser.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://swift-pdf-beta.vercel.app/"},{"@type":"ListItem","position":2,"name":"Remove PDF Watermarks","item":"https://swift-pdf-beta.vercel.app/remove-watermark.html"}]}]}</script>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <nav class="nav"><div class="nav-inner"><div class="nav-left"><a class="logo" href="index.html">SwiftPDF</a><button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle dark mode">◐</button></div><div class="nav-links"><a href="index.html">Home</a><a href="about.html">About</a><a href="contact.html">Contact</a></div></div></nav>
@@ -35,7 +36,7 @@
       <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Choose a PDF or drop it here"><h3>Select a PDF</h3><p>or drag &amp; drop it here</p><button class="btn btn-primary" type="button" onclick="event.stopPropagation(); fileInput.click()">Choose file</button><input type="file" id="fileInput" accept="application/pdf" hidden /></div>
       <div id="fileStrip"></div>
       <div class="toolbar" id="toolbar" hidden><span class="toolbar-hint">Watermark annotations will be removed where supported. Text and images baked into page content cannot be detected and erased reliably.</span><button class="btn btn-done" id="convertBtn" type="button">Remove annotations</button></div>
-      <div class="result-bar" id="resultBar" hidden><span class="result-text">Your PDF is ready to download.</span><div class="name-row"><input class="name-input" id="fileName" type="text" placeholder="cleaned" aria-label="PDF file name" maxlength="80" /><span class="name-ext">.pdf</span></div><div style="display:flex; gap:10px;"><button class="btn btn-ghost" id="previewBtn" type="button">Preview</button><button class="btn btn-primary result-download" id="downloadBtn" type="button">&#8595; Download PDF</button></div></div>
+      <div class="result-bar" id="resultBar" hidden><span class="result-text">Your PDF is ready to download.</span><div class="name-row"><input class="name-input" id="fileName" type="text" placeholder="cleaned" aria-label="PDF file name" maxlength="80" /><span class="name-ext">.pdf</span></div><div style="display:flex; gap:10px;"><button class="btn btn-ghost" id="newJobBtn" type="button">Start another</button><button class="btn btn-ghost" id="previewBtn" type="button">Preview</button><button class="btn btn-primary result-download" id="downloadBtn" type="button">&#8595; Download PDF</button></div></div>
       <p class="status" id="status" role="status"></p>
     </div>
   </main>

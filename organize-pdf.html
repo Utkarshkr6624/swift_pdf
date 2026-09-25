@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script>(function(){var t=null;try{t=localStorage.getItem("swiftpdf-theme")}catch(e){}if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t;})();</script>
+  <title>Organize, Split &amp; Extract PDF Pages | SwiftPDF</title>
+  <meta name="description" content="Reorder, rotate, crop and extract PDF pages, or add, crop and arrange image pages before downloading. Free, private browser tool." />
+  <meta name="robots" content="index, follow" />
+  <meta name="author" content="SwiftPDF" />
+  <meta name="theme-color" content="#2f6bff" />
+  <link rel="canonical" href="https://swift-pdf-beta.vercel.app/organize-pdf.html" />
+  <meta property="og:type" content="website" /><meta property="og:locale" content="en_US" /><meta property="og:site_name" content="SwiftPDF" />
+  <meta property="og:title" content="Organize, Split &amp; Extract PDF Pages | SwiftPDF" />
+  <meta property="og:description" content="Reorder, rotate, crop and extract PDF pages, or add, crop and arrange image pages before downloading in your browser." />
+  <meta property="og:url" content="https://swift-pdf-beta.vercel.app/organize-pdf.html" /><meta property="og:image" content="https://swift-pdf-beta.vercel.app/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" /><meta name="twitter:title" content="Organize, Split &amp; Extract PDF Pages | SwiftPDF" />
+  <meta name="twitter:description" content="Reorder, rotate, crop and extract PDF pages, or add, crop and arrange image pages before downloading in your browser." /><meta name="twitter:image" content="https://swift-pdf-beta.vercel.app/og-image.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27><rect width=%2732%27 height=%2732%27 rx=%279%27 fill=%27%232f6bff%27/><path d=%27M10 6h8l5 5v15h-13z%27 fill=%27%23fff%27/></svg>" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebApplication","name":"PDF Page Organizer - SwiftPDF","url":"https://swift-pdf-beta.vercel.app/organize-pdf.html","applicationCategory":"UtilitiesApplication","operatingSystem":"Any","description":"Reorder, rotate, crop, delete, extract, and split PDF pages, or add image pages in your browser.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://swift-pdf-beta.vercel.app/"},{"@type":"ListItem","position":2,"name":"Organize PDF","item":"https://swift-pdf-beta.vercel.app/organize-pdf.html"}]}]}</script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <nav class="nav"><div class="nav-inner"><div class="nav-left"><a class="logo" href="index.html">SwiftPDF</a><button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle dark mode">◐</button></div><div class="nav-links"><a href="index.html">Home</a><a href="about.html">About</a><a href="contact.html">Contact</a></div></div></nav>
+  <main>
+    <div class="page-head container"><a class="back" href="index.html">&larr; All tools</a><h1>Organize PDF Pages</h1><p>Drag pages to reorder them, rotate, crop or remove pages, add and crop image pages, extract selected pages, or split the PDF into one file per page. Your document stays on this device.</p></div>
+    <div class="container organizer-container">
+      <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Choose a PDF or drop it here"><h3>Select a PDF</h3><p>or drag &amp; drop it here</p><button class="btn btn-primary" type="button" onclick="event.stopPropagation(); fileInput.click()">Choose PDF</button><input id="fileInput" type="file" accept="application/pdf,.pdf" hidden /></div>
+      <div class="organizer-heading" id="organizerHeading" hidden><h2 id="documentName"></h2><span id="pageCount" class="toolbar-hint"></span></div>
+      <div class="organizer-pages-wrap" id="pageScroller" hidden>
+        <div class="page-organizer-grid" id="pageGrid" role="region" tabindex="0" aria-label="PDF pages. Scroll horizontally or use the navigation buttons."></div>
+        <div class="strip-actions organizer-scroll-actions" id="pageScrollActions" aria-label="Page navigation">
+          <button class="strip-arrow" id="pageScrollLeft" type="button" aria-label="Scroll pages left" title="Scroll pages left">&#8249;</button>
+          <button class="strip-arrow" id="pageScrollRight" type="button" aria-label="Scroll pages right" title="Scroll pages right">&#8250;</button>
+        </div>
+      </div>
+      <div class="organizer-toolbar" id="organizerToolbar" hidden>
+        <span class="toolbar-hint" id="selectionCount">Select pages to extract.</span>
+        <div class="organizer-actions"><button class="btn btn-ghost" id="editPagesBtn" type="button">Edit pages</button><button class="btn btn-ghost" id="extractBtn" type="button" disabled>Extract selected</button><button class="btn btn-ghost" id="splitBtn" type="button">Split every page</button><button class="btn btn-done" id="saveBtn" type="button">Save organized PDF</button></div>
+      </div>
+      <div class="result-bar" id="resultBar" hidden><span class="result-text">Your PDF is ready.</span><div class="name-row"><input class="name-input" id="fileName" type="text" placeholder="organized" aria-label="Output file name" maxlength="80" /><span class="name-ext">.pdf</span></div><button class="btn btn-ghost" id="newJobBtn" type="button">Start another</button><button class="btn btn-primary result-download" id="downloadBtn" type="button">&#8595; Download</button></div>
+      <p class="status" id="status" role="status"></p>
+    </div>
+  </main>
+  <div class="crop-overlay" id="organizerWorkspace" hidden>
+    <section class="workspace" role="dialog" aria-modal="true" aria-labelledby="organizerWorkspaceTitle">
+      <div class="ws-head"><div><h3 id="organizerWorkspaceTitle">Edit PDF pages</h3><span class="ws-meta" id="editorCount">Drag to reorder. Crop PDF pages and add, crop, replace, or remove images. Cropped PDF pages export as high-resolution images.</span></div><div class="ws-head-actions"><button class="btn btn-ghost" id="addImagesBtn" type="button">Add images</button><input id="imageInput" type="file" accept="image/*" multiple hidden /><input id="replaceImageInput" type="file" accept="image/*" hidden /><button class="btn btn-primary" id="editorDoneBtn" type="button">Done</button></div></div>
+      <div class="ws-body"><div class="ws-grid" id="editorGrid"></div></div>
+    </section>
+  </div>
+  <div class="crop-overlay" id="cropOverlay" hidden>
+    <div class="crop-dialog" role="dialog" aria-modal="true" aria-label="Crop image">
+      <div class="crop-head"><h3 id="cropTitle">Crop image</h3><span class="crop-hint">Drag the frame to move it, use the handles to resize, and check the preview before applying.</span></div>
+      <div class="crop-content"><div class="crop-stage-wrap" id="cropStageWrap"><div class="crop-stage" id="cropStage"><canvas id="cropCanvas"></canvas><div class="crop-box" id="cropBox"><div class="crop-handle crop-handle-nw" data-handle="nw"></div><div class="crop-handle crop-handle-ne" data-handle="ne"></div><div class="crop-handle crop-handle-sw" data-handle="sw"></div><div class="crop-handle crop-handle-se" data-handle="se"></div><div class="crop-handle crop-handle-n" data-handle="n"></div><div class="crop-handle crop-handle-s" data-handle="s"></div><div class="crop-handle crop-handle-e" data-handle="e"></div><div class="crop-handle crop-handle-w" data-handle="w"></div></div></div></div><div class="crop-preview-row"><div class="crop-preview-copy"><strong>Crop preview</strong><span>Only the area inside the frame is kept.</span><small id="cropDimensions"></small></div><div class="crop-preview-frame"><canvas id="cropPreview"></canvas></div></div></div>
+      <div class="crop-foot"><button class="btn btn-ghost" type="button" onclick="resetCrop()">Reset</button><button class="btn btn-ghost" type="button" onclick="cancelCrop()">Cancel</button><button class="btn btn-primary" type="button" onclick="applyCrop()">Apply crop</button></div>
+    </div>
+  </div>
+  <footer><div class="footer-inner"><span>&copy; 2026 SwiftPDF</span><span><a href="privacy.html">Privacy</a> &nbsp;·&nbsp; <a href="terms.html">Terms</a> &nbsp;·&nbsp; <a href="contact.html">Contact</a></span></div></footer>
+  <script src="pdf-core.js"></script><script src="crop.js"></script><script src="organize-pdf.js"></script><script src="theme.js"></script>
+</body>
+</html>

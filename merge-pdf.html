@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script>(function(){var t=localStorage.getItem("swiftpdf-theme");if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content=t;})();</script>
+  <script>(function(){var t=null;try{t=localStorage.getItem("swiftpdf-theme")}catch(e){}if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content=t;})();</script>
   <title>Merge PDF — Combine PDF Files into One | SwiftPDF</title>
-  <meta name="description" content="Merge multiple PDF files into a single document for free. Drag to reorder and combine instantly — your files stay on your device." />
+  <meta name="description" content="Merge multiple PDFs in your browser, including permission-restricted documents. Drag to reorder; files stay on your device. Open-password PDFs need the correct password." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
+  
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27><rect width=%2732%27 height=%2732%27 rx=%279%27 fill=%27%232f6bff%27/><path d=%27M10 6h8l5 5v15h-13z%27 fill=%27%23fff%27/></svg>" />
   <meta name="keywords" content="merge pdf, combine pdf, join pdf files, pdf merger free" />
   <meta name="robots" content="index, follow" />
@@ -20,12 +20,12 @@
   <meta property="og:locale" content="en_US" />
   <meta property="og:site_name" content="SwiftPDF" />
   <meta property="og:title" content="Merge PDF — Combine PDF Files into One | SwiftPDF" />
-  <meta property="og:description" content="Merge multiple PDF files into a single document for free. Drag to reorder pages and combine instantly — your files stay on your device." />
+  <meta property="og:description" content="Merge multiple PDFs in your browser, including permission-restricted documents. Drag to reorder; files stay on your device. Open-password PDFs need the correct password." />
   <meta property="og:url" content="https://swift-pdf-beta.vercel.app/merge-pdf.html" />
   <meta property="og:image" content="https://swift-pdf-beta.vercel.app/og-image.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Merge PDF — Combine PDF Files into One | SwiftPDF" />
-  <meta name="twitter:description" content="Merge multiple PDF files into a single document for free. Drag to reorder pages and combine instantly — your files stay on your device." />
+  <meta name="twitter:description" content="Merge multiple PDFs in your browser, including permission-restricted documents. Drag to reorder; files stay on your device. Open-password PDFs need the correct password." />
   <meta name="twitter:image" content="https://swift-pdf-beta.vercel.app/og-image.png" />
   <script type="application/ld+json">
   {
@@ -50,6 +50,7 @@
     ]
   }
   </script>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <nav class="nav">
@@ -87,7 +88,7 @@
     <div class="page-head container">
       <a class="back" href="index.html">&larr; All tools</a>
       <h1>Merge PDF</h1>
-      <p>Join several PDFs into one document. Use each file's menu to reorder them before merging. Word and PowerPoint files can't be converted in the browser — convert them to PDF first, then merge here.</p>
+      <p>Join PDFs in the order you choose. Permission-restricted documents use a page-rendering fallback; PDFs with an open password need the correct password. Files stay on your device.</p>
     </div>
 
     <div class="container" style="padding-bottom:96px;">
@@ -115,6 +116,7 @@
           <span class="name-ext">.pdf</span>
         </div>
         <div style="display:flex; gap:10px;">
+          <button class="btn btn-ghost" id="newJobBtn" type="button">Start another</button>
           <button class="btn btn-ghost" id="previewBtn" type="button">Preview</button>
           <button class="btn btn-primary result-download" id="downloadBtn" type="button">&#8595; Download PDF</button>
         </div>

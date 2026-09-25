@@ -3,20 +3,21 @@ const fileInput = document.getElementById("fileInput");
 const stripEl = document.getElementById("fileStrip");
 const toolbar = document.getElementById("toolbar");
 const convertBtn = document.getElementById("convertBtn");
-const resultBar = document.getElementById("resultBar");
 const strip = createFileStrip({ input: fileInput, stripEl, accept: "pdf", toolbar });
 
 wireDropzone(dropzone, fileInput, (files) => {
   strip.clear();
   strip.addFiles(Array.from(files).slice(0, 1));
-  resultBar.hidden = true;
+  hideResultBar();
 });
+wireStartAnother(fileInput, () => strip.clear());
 
 convertBtn.addEventListener("click", async () => {
   const item = strip.items[0];
   if (!item) return;
+  setToolBusy(true);
   convertBtn.disabled = true;
-  resultBar.hidden = true;
+  hideResultBar();
   setStatus("Checking PDF annotations…");
   try {
     const pdfLib = await loadPdfLib();
@@ -58,5 +59,6 @@ convertBtn.addEventListener("click", async () => {
     setStatus("Could not process this PDF. It may be corrupted, encrypted, or use unsupported annotations.", "error");
   } finally {
     convertBtn.disabled = false;
+    setToolBusy(false);
   }
 });

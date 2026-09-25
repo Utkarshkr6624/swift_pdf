@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script>(function(){var t=localStorage.getItem("swiftpdf-theme");if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content=t;})();</script>
+  <script>(function(){var t=null;try{t=localStorage.getItem("swiftpdf-theme")}catch(e){}if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content=t;})();</script>
   <title>Image to PDF Converter — JPG, PNG, WebP to PDF Free | SwiftPDF</title>
-  <meta name="description" content="Convert JPG, PNG and WebP images to a single PDF for free. Crop, rotate and reorder photos, then download your PDF instantly. 100% private — files never leave your device." />
+  <meta name="description" content="Convert JPG, PNG, WebP, GIF, BMP and other browser-supported images to PDF. Capture, crop, rotate and reorder images privately in your browser." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
+  
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27><rect width=%2732%27 height=%2732%27 rx=%279%27 fill=%27%232f6bff%27/><path d=%27M10 6h8l5 5v15h-13z%27 fill=%27%23fff%27/></svg>" />
   <meta name="keywords" content="image to pdf, jpg to pdf, png to pdf, photo to pdf converter, crop images pdf" />
   <meta name="robots" content="index, follow" />
@@ -20,12 +20,12 @@
   <meta property="og:locale" content="en_US" />
   <meta property="og:site_name" content="SwiftPDF" />
   <meta property="og:title" content="Image to PDF Converter — JPG, PNG, WebP to PDF Free | SwiftPDF" />
-  <meta property="og:description" content="Convert JPG, PNG and WebP images to a single PDF for free. Crop, rotate and reorder photos, then download your PDF instantly. 100% private — files never leave your device." />
+  <meta property="og:description" content="Convert JPG, PNG, WebP, GIF, BMP and other browser-supported images to PDF. Capture, crop, rotate and reorder images privately in your browser." />
   <meta property="og:url" content="https://swift-pdf-beta.vercel.app/image-to-pdf.html" />
   <meta property="og:image" content="https://swift-pdf-beta.vercel.app/og-image.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Image to PDF Converter — JPG, PNG, WebP to PDF Free | SwiftPDF" />
-  <meta name="twitter:description" content="Convert JPG, PNG and WebP images to a single PDF for free. Crop, rotate and reorder photos, then download your PDF instantly. 100% private — files never leave your device." />
+  <meta name="twitter:description" content="Convert JPG, PNG, WebP, GIF, BMP and other browser-supported images to PDF. Capture, crop, rotate and reorder images privately in your browser." />
   <meta name="twitter:image" content="https://swift-pdf-beta.vercel.app/og-image.png" />
   <script type="application/ld+json">
   {
@@ -37,8 +37,9 @@
         "url": "https://swift-pdf-beta.vercel.app/image-to-pdf.html",
         "applicationCategory": "UtilitiesApplication",
         "operatingSystem": "Any",
-        "description": "Convert JPG, PNG and WebP images to a single PDF for free. Crop, rotate and reorder photos, then download your PDF instantly.",
-        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+        "description": "Convert JPG, PNG, WebP, GIF, BMP and other browser-supported images to PDF. Capture, crop, rotate and reorder images privately in your browser.",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "featureList": ["Convert browser-supported image formats to PDF", "Capture photos from a live camera or device camera picker", "Crop, rotate and reorder images before conversion"]
       },
       {
         "@type": "BreadcrumbList",
@@ -50,6 +51,7 @@
     ]
   }
   </script>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <nav class="nav">
@@ -87,7 +89,7 @@
     <div class="page-head container">
       <a class="back" href="index.html">&larr; All tools</a>
       <h1>Image to PDF</h1>
-      <p>Drop in JPG, PNG or WebP images and combine them into a single PDF. Hover a file and use its menu to reorder or remove it. Nothing leaves your device.</p>
+      <p>Add JPG, PNG, WebP, GIF, BMP and other image formats your browser can open—or capture a photo—then crop, rotate, reorder and combine them. Your files stay on this device.</p>
     </div>
 
     <div class="container" style="padding-bottom:96px;">
@@ -96,14 +98,16 @@
         <p>or drag &amp; drop them here</p>
         <div class="dropzone-actions">
           <button class="btn btn-primary" type="button" onclick="event.stopPropagation(); fileInput.click()">Choose files</button>
+          <button class="btn btn-ghost" id="cameraBtn" type="button" onclick="event.stopPropagation()">Take a photo</button>
         </div>
-        <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" multiple hidden />
+        <input type="file" id="fileInput" accept="image/*" multiple hidden />
+        <input type="file" id="cameraFileInput" accept="image/*" capture="environment" hidden />
       </div>
 
       <div id="fileStrip"></div>
 
       <div class="toolbar" id="toolbar" hidden>
-        <span class="toolbar-hint">Files are added to the PDF in this order. Hover a file for its menu (crop, move, remove).</span>
+        <div class="image-toolbar-copy"><span class="toolbar-hint">Images are added in this order. Use an image menu to crop, move or remove it.</span><strong class="image-page-count" id="imagePageCount" aria-live="polite">0 images · 0 PDF pages</strong></div>
         <div style="display:flex; gap:10px;">
           <button class="btn btn-ghost" id="wsBtn" type="button">Edit images</button>
           <button class="btn btn-ghost" id="clearBtn" type="button">Clear all</button>
@@ -117,6 +121,7 @@
           <span class="name-ext">.pdf</span>
         </div>
         <div style="display:flex; gap:10px;">
+          <button class="btn btn-ghost" id="newJobBtn" type="button">Start another</button>
           <button class="btn btn-ghost" id="previewBtn" type="button">Preview</button>
           <button class="btn btn-primary result-download" id="downloadBtn" type="button">&#8595; Download PDF</button>
         </div>
@@ -140,9 +145,29 @@
             <span class="ws-add-plus">+</span>
             Add images
           </button>
+          <button class="ws-add ws-camera-add" id="wsCameraCard" type="button">
+            <span class="ws-add-plus" aria-hidden="true">⌁</span>
+            Take a photo
+          </button>
         </div>
       </div>
     </div>
+  </div>
+
+  <div class="camera-overlay" id="cameraOverlay" hidden>
+    <section class="camera-dialog" role="dialog" aria-modal="true" aria-labelledby="cameraTitle">
+      <header class="camera-head">
+        <div><span class="camera-eyebrow">IMAGE TO PDF</span><h2 id="cameraTitle">Take a photo</h2></div>
+        <button class="camera-close" id="cameraClose" type="button" aria-label="Close camera">×</button>
+      </header>
+      <div class="camera-stage"><video id="cameraVideo" autoplay playsinline muted></video><div class="camera-placeholder" id="cameraPlaceholder">Your camera preview will appear here.</div></div>
+      <p class="camera-status" id="cameraStatus" role="status" aria-live="polite">Allow camera access when your browser asks.</p>
+      <div class="camera-actions">
+        <button class="btn btn-ghost" id="cameraSwitch" type="button">Switch camera</button>
+        <button class="btn btn-ghost" id="cameraFallback" type="button">Camera / photo picker</button>
+        <button class="btn btn-primary" id="cameraCapture" type="button" disabled>Capture photo</button>
+      </div>
+    </section>
   </div>
 
 
@@ -150,26 +175,28 @@
     <div class="crop-dialog" role="dialog" aria-modal="true" aria-label="Crop image">
       <div class="crop-head">
         <h3 id="cropTitle">Crop image</h3>
-        <span class="crop-hint">Drag on the image to select &middot; use the edge &amp; corner handles to resize</span>
+        <span class="crop-hint">Drag inside the frame to move it. Drag outside it to draw a new crop; use the handles to resize.</span>
       </div>
-      <div class="crop-stage-wrap" id="cropStageWrap">
-        <div class="crop-stage" id="cropStage">
-          <canvas id="cropCanvas"></canvas>
-          <div class="crop-box" id="cropBox">
-            <div class="crop-handle crop-handle-nw" data-handle="nw"></div>
-            <div class="crop-handle crop-handle-ne" data-handle="ne"></div>
-            <div class="crop-handle crop-handle-sw" data-handle="sw"></div>
-            <div class="crop-handle crop-handle-se" data-handle="se"></div>
-            <div class="crop-handle crop-handle-n" data-handle="n"></div>
-            <div class="crop-handle crop-handle-s" data-handle="s"></div>
-            <div class="crop-handle crop-handle-e" data-handle="e"></div>
-            <div class="crop-handle crop-handle-w" data-handle="w"></div>
+      <div class="crop-content">
+        <div class="crop-stage-wrap" id="cropStageWrap">
+          <div class="crop-stage" id="cropStage">
+            <canvas id="cropCanvas"></canvas>
+            <div class="crop-box" id="cropBox">
+              <div class="crop-handle crop-handle-nw" data-handle="nw"></div>
+              <div class="crop-handle crop-handle-ne" data-handle="ne"></div>
+              <div class="crop-handle crop-handle-sw" data-handle="sw"></div>
+              <div class="crop-handle crop-handle-se" data-handle="se"></div>
+              <div class="crop-handle crop-handle-n" data-handle="n"></div>
+              <div class="crop-handle crop-handle-s" data-handle="s"></div>
+              <div class="crop-handle crop-handle-e" data-handle="e"></div>
+              <div class="crop-handle crop-handle-w" data-handle="w"></div>
+            </div>
           </div>
         </div>
-      </div>
-      <div class="crop-preview-row">
-        <span class="crop-preview-label">Preview</span>
-        <div class="crop-preview-frame"><canvas id="cropPreview"></canvas></div>
+        <div class="crop-preview-row">
+          <div class="crop-preview-copy"><strong>Crop preview</strong><span>Only the area inside the blue frame is kept.</span><small id="cropDimensions"></small></div>
+          <div class="crop-preview-frame"><canvas id="cropPreview"></canvas></div>
+        </div>
       </div>
       <div class="crop-foot">
         <button class="btn btn-ghost" type="button" onclick="resetCrop()">Reset</button>
@@ -191,6 +218,7 @@
   <script src="crop.js"></script>
   <script src="workspace.js"></script>
   <script src="converter.js"></script>
+  <script src="camera.js"></script>
   <script src="theme.js"></script>
 </body>
 </html>
