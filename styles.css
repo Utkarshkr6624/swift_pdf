@@ -437,7 +437,8 @@ a { color: inherit; text-decoration: none; }
 .page-select { display: flex; align-items: center; gap: 7px; margin-top: 8px; color: var(--ink-soft); font-size: .78rem; cursor: pointer; }
 .page-select input { accent-color: var(--blue); }
 .page-card-actions { display: flex; gap: 8px; margin-top: 9px; }
-.page-card-actions button { flex: 1 1 0; min-width: 0; padding-left: 7px; padding-right: 7px; }
+.page-card-actions button { flex: 1 1 0; min-width: 0; padding-left: 7px; padding-right: 7px; font-size: small;
+}
 
 .theme-tool-container { padding-bottom: 72px; }
 .theme-panel { margin-top: 20px; padding: 22px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
