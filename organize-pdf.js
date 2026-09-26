@@ -37,8 +37,8 @@ pageScrollRight.addEventListener("click", () => pageGrid.scrollBy({ left: pageSc
 pageGrid.addEventListener("scroll", updatePageScrollButtons, { passive: true });
 window.addEventListener("resize", updatePageScrollButtons);
 
-// HTML drag-and-drop is unavailable on touch screens. A press-and-hold reorder
-// keeps a normal swipe free to scroll the strip and enables touch reordering.
+// HTML drag-and-drop is unavailable on touch screens. Touch movement reorders
+// the page directly; the visible arrow controls scroll the page rail.
 function bindTouchReorder(container, selector, itemProperty, onCommit) {
   let state = null;
   container.addEventListener("touchstart", (event) => {
@@ -51,13 +51,7 @@ function bindTouchReorder(container, selector, itemProperty, onCommit) {
       y: event.touches[0].clientY,
       order: [...container.querySelectorAll(selector)].map((entry) => entry[itemProperty]),
       active: false,
-      timer: 0,
     };
-    state.timer = window.setTimeout(() => {
-      if (!state) return;
-      state.active = true;
-      state.node.classList.add("touch-dragging");
-    }, 220);
   }, { passive: true });
 
   container.addEventListener("touchmove", (event) => {
@@ -65,9 +59,14 @@ function bindTouchReorder(container, selector, itemProperty, onCommit) {
     const touch = event.touches[0];
     const distance = Math.hypot(touch.clientX - state.x, touch.clientY - state.y);
     if (!state.active) {
-      // Let quick movements remain native scrolling gestures.
-      if (distance > 10) { window.clearTimeout(state.timer); state = null; }
-      return;
+      const dx = Math.abs(touch.clientX - state.x);
+      const dy = Math.abs(touch.clientY - state.y);
+      if (distance < 6) {
+        if (container === pageGrid && dx > dy && dx > 4) event.preventDefault();
+        return;
+      }
+      state.active = true;
+      state.node.classList.add("touch-dragging");
     }
     event.preventDefault();
     if (container === pageGrid) {
@@ -89,7 +88,6 @@ function bindTouchReorder(container, selector, itemProperty, onCommit) {
 
   const finish = () => {
     if (!state) return;
-    window.clearTimeout(state.timer);
     const current = state;
     state = null;
     current.node.classList.remove("touch-dragging");

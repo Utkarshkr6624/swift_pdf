@@ -41,7 +41,9 @@
 
 html { scroll-behavior: smooth; }
 
-html, body { overflow-x: hidden; }
+html { overflow-x: hidden; }
+html, body { width: 100%; max-width: 100%; overflow-x: clip; }
+body { overflow-x: hidden; }
 
 .chip img, .ws-cell img { backface-visibility: hidden; }
 body {
@@ -58,7 +60,7 @@ body {
   flex-direction: column;
 }
 
-main { flex: 1 0 auto; width: 100%; }
+main { flex: 1 0 auto; width: 100%; max-width: 100%; min-width: 0; overflow-x: clip; }
 
 h1, h2, h3 { font-family: var(--font-display); font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; }
 
@@ -66,7 +68,7 @@ a { color: inherit; text-decoration: none; }
 
 :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 6px; }
 
-.container { max-width: 960px; margin: 0 auto; padding: 0 28px; }
+.container { max-width: 960px; margin: 0 auto; padding: 0 28px; min-width: 0; }
 
 /* ---------- Nav + logo ---------- */
 .nav {
@@ -74,6 +76,8 @@ a { color: inherit; text-decoration: none; }
   background: var(--nav-bg);
   backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--line);
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 .nav-inner {
@@ -163,13 +167,16 @@ a { color: inherit; text-decoration: none; }
 .btn-ghost:hover { color: var(--ink); border-color: #c9cfdd; }
 
 /* ---------- Horizontal file strip ---------- */
-.file-strip-wrap { position: relative; margin-top: 16px; }
+.file-strip-wrap { position: relative; margin-top: 16px; max-width: 100%; min-width: 0; overflow: hidden; }
 
 .file-strip {
   display: flex; gap: 12px;
+  max-width: 100%;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
   padding: 10px 2px 14px;
   scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
 }
 .file-strip:empty { display: none; }
 
@@ -271,7 +278,8 @@ a { color: inherit; text-decoration: none; }
 .workspace {
   background: var(--bg);
   border-radius: var(--radius);
-  width: min(1100px, 96vw);
+  width: min(1100px, 100%);
+  max-width: 100%;
   height: 92vh;
   display: flex; flex-direction: column;
   overflow: hidden;
@@ -435,16 +443,16 @@ a { color: inherit; text-decoration: none; }
   padding: 9px 12px; width: 200px; max-width: 100%;
 }
 .name-ext { color: var(--ok-text); font-weight: 600; font-size: 0.95rem; }
-.organizer-container { padding-bottom: 96px; }
-.organizer-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 22px 0 12px; }
+.organizer-container { padding-bottom: 96px; max-width: 100%; min-width: 0; }
+.organizer-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 22px 0 12px; flex-wrap: wrap; min-width: 0; }
 .organizer-heading h2 { font-size: 1rem; overflow-wrap: anywhere; }
 .organizer-pages-wrap { min-width: 0; margin-top: 16px; }
 .organizer-pages-wrap[hidden] { display: none; }
-.page-organizer-grid { display: flex; gap: 14px; overflow-x: auto; overscroll-behavior-x: contain; scroll-behavior: smooth; padding: 3px 2px 12px; scrollbar-width: none; }
+.page-organizer-grid { display: flex; width: 100%; max-width: 100%; min-width: 0; gap: 14px; overflow-x: auto; overscroll-behavior-x: contain; scroll-behavior: smooth; padding: 3px 2px 12px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .page-organizer-grid::-webkit-scrollbar { display: none; }
 .page-organizer-grid:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; border-radius: 10px; }
 .organizer-scroll-actions { margin-top: 2px; }
-.page-card { flex: 0 0 170px; min-width: 0; padding: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 1px 3px rgba(var(--shadow-color), .05); cursor: grab; transition: border-color .15s, box-shadow .15s; }
+.page-card { flex: 0 0 170px; min-width: 0; padding: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 1px 3px rgba(var(--shadow-color), .05); cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; transition: border-color .15s, box-shadow .15s; }
 .page-card:hover { border-color: var(--blue); box-shadow: 0 8px 20px rgba(var(--shadow-color), .09); }
 .page-card-dragging { opacity: .5; cursor: grabbing; }
 .page-card-preview { height: 210px; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 9px; background: var(--tint); }
@@ -517,6 +525,7 @@ a { color: inherit; text-decoration: none; }
   backdrop-filter: blur(4px);
   display: flex; align-items: center; justify-content: center;
   padding: 8px;
+  overflow-x: hidden;
   opacity: 1;
   transition: opacity 180ms ease;
 }
@@ -534,8 +543,8 @@ a { color: inherit; text-decoration: none; }
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  max-width: min(1600px, calc(100vw - 16px));
-  width: min(1600px, calc(100vw - 16px));
+  width: 100%;
+  max-width: min(1600px, 100%);
   height: min(96vh, calc(100vh - 16px));
   max-height: calc(100vh - 16px);
   display: flex; flex-direction: column;
@@ -896,7 +905,7 @@ html { scroll-padding-top: 5rem; }
 body { background: var(--bg); }
 button, input, select, textarea { font: inherit; }
 button { color: inherit; }
-.container, .nav-inner, .footer-inner { max-width: 1160px; }
+.container, .nav-inner, .footer-inner { max-width: min(1160px, 100%); min-width: 0; }
 .container { padding-inline: 30px; }
 :where(a, button, input, select, textarea, summary):focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
 
@@ -1007,7 +1016,7 @@ footer a:hover { color: var(--blue); }
 
 /* Camera dialog follows the same squared, high-contrast controls. */
 .camera-overlay[hidden] { display: none; }
-.camera-overlay { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 18px; background: rgba(7, 10, 14, .78); opacity: 1; transition: opacity 180ms ease; }
+.camera-overlay { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 18px; background: rgba(7, 10, 14, .78); overflow-x: hidden; opacity: 1; transition: opacity 180ms ease; }
 .camera-overlay.is-cropping { z-index: 90; }
 .camera-dialog { width: min(100%, 760px); overflow: hidden; padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--ink); box-shadow: 0 20px 70px rgba(0, 0, 0, .38); }
 .camera-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; }

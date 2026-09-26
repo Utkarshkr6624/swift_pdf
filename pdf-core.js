@@ -77,6 +77,58 @@ function closeAllMenus() {
   });
 }
 
+// Reorder cards on touch devices with pointer capture so dragging remains
+// attached to the finger even when it moves beyond the original card.
+function wireTouchSort(container, selector, getItem, onSort) {
+  if (!container) return;
+  let state = null;
+  container.addEventListener("pointerdown", (event) => {
+    if ((event.pointerType !== "touch" && event.pointerType !== "pen") || event.button !== 0 || event.target.closest("button, input, label")) return;
+    const node = event.target.closest(selector);
+    if (!node || !container.contains(node)) return;
+    const children = [...container.querySelectorAll(selector)];
+    state = {
+      node, pointerId: event.pointerId, x: event.clientX, y: event.clientY, active: false,
+      order: children.map(getItem),
+      rects: new Map(children.map((child) => [getItem(child), child.getBoundingClientRect()])),
+    };
+    try { node.setPointerCapture(event.pointerId); } catch {}
+  });
+  container.addEventListener("pointermove", (event) => {
+    if (!state || event.pointerId !== state.pointerId) return;
+    if (!state.active && Math.hypot(event.clientX - state.x, event.clientY - state.y) < 6) return;
+    state.active = true;
+    state.node.classList.add("touch-dragging");
+    event.preventDefault();
+    if (container.scrollWidth > container.clientWidth) {
+      const bounds = container.getBoundingClientRect();
+      if (event.clientX < bounds.left + 32) container.scrollLeft -= 18;
+      else if (event.clientX > bounds.right - 32) container.scrollLeft += 18;
+    }
+    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest(selector);
+    if (!target || target === state.node || !container.contains(target)) return;
+    const rect = target.getBoundingClientRect();
+    const horizontal = container.scrollWidth > container.clientWidth;
+    const after = horizontal
+      ? event.clientX > rect.left + rect.width / 2
+      : event.clientY > rect.top + rect.height / 2 ||
+        (Math.abs(event.clientY - (rect.top + rect.height / 2)) < rect.height / 3 && event.clientX > rect.left + rect.width / 2);
+    const reference = after ? target.nextElementSibling : target;
+    if (reference !== state.node && reference !== state.node.nextElementSibling) container.insertBefore(state.node, reference || null);
+  }, { passive: false });
+  const finish = (event) => {
+    if (!state || (event && event.pointerId !== state.pointerId)) return;
+    const current = state;
+    state = null;
+    current.node.classList.remove("touch-dragging");
+    if (!current.active) return;
+    const ordered = [...container.querySelectorAll(selector)].map(getItem);
+    if (ordered.some((item, index) => item !== current.order[index])) onSort(ordered, current.rects);
+  };
+  container.addEventListener("pointerup", finish);
+  container.addEventListener("pointercancel", finish);
+}
+
 function createFileStrip({ input, stripEl, accept, toolbar, extraMenu, onChange }) {
   let items = []; // { file, url?, isPdf }
   const wrap = document.createElement("div");
@@ -135,6 +187,7 @@ function createFileStrip({ input, stripEl, accept, toolbar, extraMenu, onChange 
       const chip = document.createElement("div");
       chip.className = "chip";
       chip.draggable = true;
+      chip._fileStripItem = item;
       chip.dataset.i = i;
       chip.addEventListener("dragstart", (e) => {
         dragFrom = i;
