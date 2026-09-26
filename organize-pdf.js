@@ -37,9 +37,96 @@ pageScrollRight.addEventListener("click", () => pageGrid.scrollBy({ left: pageSc
 pageGrid.addEventListener("scroll", updatePageScrollButtons, { passive: true });
 window.addEventListener("resize", updatePageScrollButtons);
 
+// HTML drag-and-drop is unavailable on touch screens. A press-and-hold reorder
+// keeps a normal swipe free to scroll the strip and enables touch reordering.
+function bindTouchReorder(container, selector, itemProperty, onCommit) {
+  let state = null;
+  container.addEventListener("touchstart", (event) => {
+    if (event.touches.length !== 1 || event.target.closest("button, input, label")) return;
+    const node = event.target.closest(selector);
+    if (!node) return;
+    state = {
+      node,
+      x: event.touches[0].clientX,
+      y: event.touches[0].clientY,
+      order: [...container.querySelectorAll(selector)].map((entry) => entry[itemProperty]),
+      active: false,
+      timer: 0,
+    };
+    state.timer = window.setTimeout(() => {
+      if (!state) return;
+      state.active = true;
+      state.node.classList.add("touch-dragging");
+    }, 220);
+  }, { passive: true });
+
+  container.addEventListener("touchmove", (event) => {
+    if (!state || event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    const distance = Math.hypot(touch.clientX - state.x, touch.clientY - state.y);
+    if (!state.active) {
+      // Let quick movements remain native scrolling gestures.
+      if (distance > 10) { window.clearTimeout(state.timer); state = null; }
+      return;
+    }
+    event.preventDefault();
+    if (container === pageGrid) {
+      const bounds = container.getBoundingClientRect();
+      if (touch.clientX < bounds.left + 36) container.scrollLeft -= 18;
+      else if (touch.clientX > bounds.right - 36) container.scrollLeft += 18;
+    }
+    const target = document.elementFromPoint(touch.clientX, touch.clientY)?.closest(selector);
+    if (!target || target === state.node || !container.contains(target)) return;
+    const rect = target.getBoundingClientRect();
+    const dx = touch.clientX - (rect.left + rect.width / 2);
+    const dy = touch.clientY - (rect.top + rect.height / 2);
+    const after = Math.abs(dx) > Math.abs(dy) ? dx > 0 : dy > 0;
+    const reference = after ? target.nextElementSibling : target;
+    if (reference !== state.node && reference !== state.node.nextElementSibling) {
+      container.insertBefore(state.node, reference || null);
+    }
+  }, { passive: false });
+
+  const finish = () => {
+    if (!state) return;
+    window.clearTimeout(state.timer);
+    const current = state;
+    state = null;
+    current.node.classList.remove("touch-dragging");
+    if (!current.active) return;
+    const ordered = [...container.querySelectorAll(selector)].map((entry) => entry[itemProperty]);
+    const changed = ordered.some((item, index) => item !== current.order[index]);
+    if (changed) onCommit(ordered);
+  };
+  container.addEventListener("touchend", finish, { passive: true });
+  container.addEventListener("touchcancel", finish, { passive: true });
+}
+
+bindTouchReorder(pageGrid, ".page-card", "_pageItem", (ordered) => {
+  pageItems = ordered;
+  pageGrid.querySelectorAll(".page-card-number").forEach((node, index) => { node.textContent = `Page ${index + 1}`; });
+  hideResultBar();
+  updateSelection();
+  setStatus("Page order updated. Save the PDF when you are ready.", "success");
+});
+bindTouchReorder(editorGrid, ".organizer-editor-cell", "_item", (ordered) => {
+  pageItems = ordered;
+  editorGrid.querySelectorAll(".ws-num").forEach((node, index) => { node.textContent = String(index + 1); });
+  hideResultBar();
+  const cards = new Map([...pageGrid.querySelectorAll(".page-card")].map((card) => [card._pageItem, card]));
+  pageItems.forEach((item, index) => {
+    const card = cards.get(item);
+    if (!card) return;
+    card.querySelector(".page-card-number").textContent = `Page ${index + 1}`;
+    pageGrid.appendChild(card);
+  });
+  updateSelection();
+  setStatus("Page order updated. Save the PDF when you are ready.", "success");
+});
+
 wireDropzone(dropzone, fileInput, (files) => loadFile(Array.from(files)[0]));
 fileInput.addEventListener("change", () => { fileInput.value = ""; });
-editPagesBtn.addEventListener("click", () => { renderEditor(); editorOverlay.hidden = false; document.body.style.overflow = "hidden"; });
+editPagesBtn.addEventListener("click", () => { renderEditor(); showModalOverlay(editorOverlay); document.body.style.overflow = "hidden"; });
 document.getElementById("editorDoneBtn").addEventListener("click", closeEditor);
 document.getElementById("addImagesBtn").addEventListener("click", () => imageInput.click());
 imageInput.addEventListener("change", () => { addImages(Array.from(imageInput.files || [])); imageInput.value = ""; });
@@ -58,7 +145,9 @@ replaceImageInput.addEventListener("change", () => {
   replaceTarget = null;
   replaceImageInput.value = "";
 });
-editorOverlay.addEventListener("click", (event) => { if (event.target === editorOverlay) closeEditor(); });
+editorOverlay.addEventListener("pointerdown", (event) => {
+  if (event.button === 0 && event.target === editorOverlay) closeEditor();
+});
 editorOverlay.addEventListener("dragover", (event) => event.preventDefault());
 editorOverlay.addEventListener("drop", (event) => {
   if (event.dataTransfer.files.length) { event.preventDefault(); addImages(Array.from(event.dataTransfer.files)); }
@@ -96,12 +185,12 @@ async function loadFile(file) {
   } catch (err) {
     if (generation !== loadGeneration) return;
     clearPages();
-    setStatus(err.message || "Could not open this PDF. It may be damaged or password-protected.", "error");
+    setStatus(explainProcessingError(err, "Opening this PDF", file.name), "error");
   }
 }
 
 function closeEditor() {
-  editorOverlay.hidden = true;
+  hideModalOverlay(editorOverlay);
   document.body.style.overflow = "";
   drawPageCards();
 }
@@ -219,7 +308,7 @@ function drawPageCards() {
         if (item.crop) { item.crop = null; item.cropScale = 1; }
         setStatus(`Updating page ${position + 1} preview…`);
         try { await replaceThumb(item); drawPageCards(); hideResultBar(); }
-        catch (err) { setStatus(err.message || "Could not rotate this page preview.", "error"); }
+        catch (err) { setStatus(explainProcessingError(err, "Updating this page preview", sourceFile && sourceFile.name), "error"); }
       });
       const remove = makeSmallButton("×", `Remove page ${position + 1}`, () => removePage(item));
       actions.append(rotate, remove);
@@ -286,7 +375,7 @@ function renderEditor() {
       item.rotation = (item.rotation + 90) % 360;
       if (item.type === "pdf" && item.crop) { item.crop = null; item.cropScale = 1; setStatus("Rotation changed. Crop this page again if needed."); }
       try { await replaceThumb(item); renderEditor(); drawPageCards(); hideResultBar(); }
-      catch (err) { setStatus(err.message || "Could not rotate this page preview.", "error"); }
+      catch (err) { setStatus(explainProcessingError(err, "Updating this page preview", sourceFile && sourceFile.name), "error"); }
     });
     addEditorAction(actions, "×", `Delete page ${index + 1}`, () => removePage(item));
     cell.appendChild(actions);
@@ -324,7 +413,7 @@ function renderEditor() {
   add.innerHTML = '<span class="ws-add-plus">+</span>Add images';
   add.addEventListener("click", () => imageInput.click());
   editorGrid.appendChild(add);
-  document.getElementById("editorCount").textContent = `${pageItems.length} page${pageItems.length === 1 ? "" : "s"} · drag to reorder`;
+  document.getElementById("editorCount").textContent = `${pageItems.length} page${pageItems.length === 1 ? "" : "s"} · drag to reorder. On phones, press and hold a page to drag it.`;
 }
 
 function addEditorAction(container, label, title, action) {
@@ -356,7 +445,7 @@ async function applyCropToItem(item) {
     renderEditor();
     drawPageCards();
   } catch (err) {
-    setStatus(err.message || "Could not crop this page.", "error");
+    setStatus(explainProcessingError(err, "Cropping this page", sourceFile && sourceFile.name), "error");
   }
 }
 
@@ -601,7 +690,7 @@ async function runAction(action) {
     }
   } catch (err) {
     console.error(err);
-    setStatus(err.message || "Could not process this PDF.", "error");
+    setStatus(explainProcessingError(err, "Processing this PDF", sourceFile && sourceFile.name), "error");
   } finally {
     busy = false;
     drawPageCards();

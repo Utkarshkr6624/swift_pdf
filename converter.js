@@ -103,7 +103,7 @@ convertBtn.addEventListener("click", async () => {
     showResult(blob, "swiftpdf.pdf");
   } catch (err) {
     console.error(err);
-    setStatus(err.message || "Conversion failed. Please try again with browser-supported images.", "error");
+    setStatus(explainProcessingError(err, "Converting these images", strip.items[0] && strip.items[0].file.name), "error");
   } finally {
     convertBtn.disabled = false;
     setToolBusy(false);
@@ -111,6 +111,15 @@ convertBtn.addEventListener("click", async () => {
 });
 
 // Shared by the live camera and the native mobile camera picker.
-window.swiftPdfAddCameraPhoto = (file) => {
-  if (file) strip.addFiles([file]);
+window.swiftPdfAddCameraPhoto = (file, crop = null) => {
+  if (!file) return;
+  const previousCount = strip.items.length;
+  strip.addFiles([file]);
+  const newItem = strip.items[previousCount];
+  if (newItem && crop) {
+    newItem.crop = crop;
+    refreshThumb(newItem, crop)
+      .then(() => strip.render())
+      .catch((err) => setStatus(err.message || "Could not update the captured photo preview.", "error"));
+  }
 };

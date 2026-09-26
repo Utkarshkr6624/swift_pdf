@@ -15,12 +15,12 @@ function openWorkspace(stripInstance) {
   } catch (err) {
     console.error("workspace:", err);
   }
-  document.getElementById("workspaceOverlay").hidden = false;
+  showModalOverlay(document.getElementById("workspaceOverlay"));
   document.body.style.overflow = "hidden";
 }
 
 function closeWorkspace() {
-  document.getElementById("workspaceOverlay").hidden = true;
+  hideModalOverlay(document.getElementById("workspaceOverlay"));
   wsStrip = null;
   document.body.style.overflow = "";
 }
@@ -60,7 +60,7 @@ function renderWorkspace() {
     if (item.url) {
       thumb = document.createElement("img");
       thumb.src = item.url;
-      thumb.alt = item.file.name;
+      thumb.alt = ""; // The visible filename below provides the accessible label.
       thumb.draggable = false;
     } else {
       thumb = document.createElement("div");
@@ -68,6 +68,13 @@ function renderWorkspace() {
       thumb.textContent = (item.file.name.split(".").pop() || "PDF").toUpperCase();
     }
     cell.appendChild(thumb);
+
+    const filename = document.createElement("span");
+    filename.className = "ws-filename";
+    filename.textContent = item.file.name;
+    filename.title = item.file.name;
+    filename.setAttribute("aria-label", `File: ${item.file.name}`);
+    cell.appendChild(filename);
 
     const num = document.createElement("span");
     num.className = "ws-num";
@@ -78,13 +85,13 @@ function renderWorkspace() {
     actions.className = "ws-actions";
     let btns = "";
     if (imageMode) {
-      btns += '<button type="button" data-act="crop" title="Crop">' +
+      btns += '<button type="button" data-act="crop" title="Crop" aria-label="Crop image ' + (i + 1) + '">' +
         '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg></button>' +
-        '<button type="button" data-act="rotate" title="Rotate">' +
+        '<button type="button" data-act="rotate" title="Rotate" aria-label="Rotate image ' + (i + 1) + '">' +
         '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M21 8a9 9 0 1 0 2.4 6"/></svg></button>';
     }
     if (imageMode) {
-      btns += '<button type="button" data-act="delete" class="ws-del" title="Remove">' +
+      btns += '<button type="button" data-act="delete" class="ws-del" title="Remove" aria-label="Remove image ' + (i + 1) + '">' +
         '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>';
     }
     actions.innerHTML = btns;
@@ -244,9 +251,9 @@ function initWorkspaceUI() {
     e.preventDefault();
     if (e.dataTransfer.files.length && wsStrip) wsStrip.addFiles(e.dataTransfer.files);
   });
-  // click outside the workspace box closes it
-  overlay.addEventListener("click", (e) => {
-    if (e.target === overlay && wsStrip) {
+  // A press on the dimmed backdrop closes the workspace on both touch and mouse.
+  overlay.addEventListener("pointerdown", (e) => {
+    if (e.button === 0 && e.target === overlay && wsStrip) {
       wsStrip.render();
       closeWorkspace();
     }

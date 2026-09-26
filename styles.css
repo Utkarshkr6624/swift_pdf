@@ -299,8 +299,23 @@ a { color: inherit; text-decoration: none; }
 }
 .ws-cell:hover { border-color: var(--blue); box-shadow: 0 8px 20px rgba(var(--shadow-color), 0.12); transform: translateY(-2px); }
 .ws-cell.ws-dragging, .ws-cell.ws-dragging:hover { opacity: 0.5; cursor: grabbing; transform: none; transition: none; }
+.ws-cell.touch-dragging, .page-card.touch-dragging { position: relative; z-index: 3; opacity: .68; cursor: grabbing; outline: 2px dashed var(--blue); outline-offset: 2px; transform: scale(.98); }
 .ws-grid:has(.ws-dragging) .ws-cell:not(.ws-dragging) { transition: none; }
 .ws-cell img { width: 100%; height: 110px; object-fit: cover; border-radius: 9px; display: block; background: var(--tint); }
+.ws-filename {
+  display: -webkit-box;
+  min-width: 0;
+  min-height: 2.5em;
+  margin: 7px 2px 5px;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: .76rem;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
 .organizer-editor-cell img { object-fit: contain; }
 .organizer-editor-cell .ws-actions { gap: 4px; }
 .organizer-editor-cell .ws-actions button { min-width: 0; padding: 0 3px; font-size: .72rem; }
@@ -316,6 +331,7 @@ a { color: inherit; text-decoration: none; }
   display: flex; gap: 6px; justify-content: center;
   opacity: 1;
 }
+.ws-cell:not(.organizer-editor-cell) .ws-actions { position: static; margin: 0 2px 2px; }
 .ws-actions button {
   flex: 1; height: 30px;
   background: var(--card); border: 1px solid var(--line); border-radius: 8px;
@@ -454,7 +470,7 @@ a { color: inherit; text-decoration: none; }
 .swatch-sepia { --swatch-bg: #f4e7cf; --swatch-ink: #3d2b1c; }
 .swatch-blue { --swatch-bg: #152239; --swatch-ink: #dce8ff; }
 .swatch-sage { --swatch-bg: #e1efe1; --swatch-ink: #243b2c; }
-.swatch-custom { --swatch-bg: #f4f6fb; --swatch-ink: #202535; background-image: linear-gradient(90deg, #f4f6fb 0 34%, #b6c2d6 34% 67%, #202535 67% 100%); }
+.swatch-custom { --swatch-bg: var(--custom-primary, #f4f6fb); --swatch-ink: var(--custom-text, #202535); background-image: linear-gradient(90deg, var(--custom-primary, #f4f6fb) 0 34%, var(--custom-secondary, #b6c2d6) 34% 67%, var(--custom-text, #202535) 67% 100%); }
 .theme-panel .toolbar { padding: 14px 0 0; margin-top: 16px; border-top: 1px solid var(--line); }
 .theme-panel .btn-done { margin: 0; }
 .custom-theme-panel { margin-top: 16px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); }
@@ -501,8 +517,18 @@ a { color: inherit; text-decoration: none; }
   backdrop-filter: blur(4px);
   display: flex; align-items: center; justify-content: center;
   padding: 8px;
+  opacity: 1;
+  transition: opacity 180ms ease;
 }
 .crop-overlay[hidden] { display: none; }
+.crop-overlay > .workspace,
+.crop-overlay > .crop-dialog,
+.camera-dialog { transition: opacity 180ms ease, transform 180ms ease; }
+.crop-overlay.is-closing,
+.camera-overlay.is-closing { opacity: 0; pointer-events: none; }
+.crop-overlay.is-closing > .workspace,
+.crop-overlay.is-closing > .crop-dialog,
+.camera-overlay.is-closing .camera-dialog { opacity: 0; transform: translateY(8px) scale(.99); }
 
 .crop-dialog {
   background: var(--card);
@@ -981,14 +1007,33 @@ footer a:hover { color: var(--blue); }
 
 /* Camera dialog follows the same squared, high-contrast controls. */
 .camera-overlay[hidden] { display: none; }
-.camera-overlay { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 18px; background: rgba(7, 10, 14, .78); }
+.camera-overlay { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 18px; background: rgba(7, 10, 14, .78); opacity: 1; transition: opacity 180ms ease; }
+.camera-overlay.is-cropping { z-index: 90; }
 .camera-dialog { width: min(100%, 760px); overflow: hidden; padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--ink); box-shadow: 0 20px 70px rgba(0, 0, 0, .38); }
 .camera-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
 .camera-eyebrow { color: var(--blue); font-size: .68rem; font-weight: 700; letter-spacing: .13em; }
 .camera-head h2 { margin-top: 4px; font-size: 1.2rem; font-weight: 600; }
 .camera-close { width: 38px; height: 38px; border: 1px solid var(--line); border-radius: 50%; background: transparent; cursor: pointer; font-size: 1.35rem; }
 .camera-stage { position: relative; display: grid; min-height: 220px; max-height: min(58vh, 560px); aspect-ratio: 16 / 10; place-items: center; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: #090d12; }
+.camera-stage[hidden], .camera-actions[hidden] { display: none; }
 .camera-stage video { width: 100%; height: 100%; max-height: min(58vh, 560px); object-fit: contain; }
+.camera-review { display: grid; gap: 10px; }
+.camera-review[hidden] { display: none; }
+.camera-review-image {
+  display: grid;
+  min-height: 220px;
+  max-height: min(58vh, 560px);
+  aspect-ratio: 16 / 10;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #090d12;
+}
+.camera-review-image img { display: block; max-width: 100%; max-height: min(56vh, 540px); object-fit: contain; }
+.camera-review-name { overflow: hidden; color: var(--ink-soft); font-size: .84rem; text-overflow: ellipsis; white-space: nowrap; }
+.camera-review-tools, .camera-review-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.camera-review-actions { margin-top: 2px; }
 .camera-placeholder { position: absolute; padding: 18px; color: #c2c9ce; text-align: center; }
 .camera-placeholder[hidden] { display: none; }
 .camera-status { min-height: 1.5em; margin: 12px 0; color: var(--ink-soft); font-size: .85rem; }
@@ -1060,8 +1105,13 @@ footer a:hover { color: var(--blue); }
   .camera-overlay { padding: 10px; }
   .camera-dialog { padding: 14px; }
   .camera-stage { min-height: 190px; aspect-ratio: 4 / 3; }
+  .camera-review-image { min-height: 190px; aspect-ratio: 4 / 3; }
+  .camera-review-image img { max-height: 42vh; }
   .camera-actions { display: grid; grid-template-columns: 1fr 1fr; }
   .camera-actions #cameraCapture { grid-column: 1 / -1; }
+  .camera-review-tools, .camera-review-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .camera-review-actions #cameraUseContinue { grid-column: 1 / -1; }
+  .camera-review-actions #cameraUseClose { grid-column: 1 / -1; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }

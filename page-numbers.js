@@ -45,7 +45,7 @@ numberBtn.addEventListener("click", async () => {
     setStatus(`Added numbers to ${pdf.getPageCount()} pages.`, "success");
   } catch (err) {
     console.error(err);
-    setStatus("Could not add page numbers. The PDF may be damaged, encrypted, or unsupported.", "error");
+    setStatus(explainProcessingError(err, "Adding page numbers to this PDF", item.file.name), "error");
   } finally {
     numberBtn.disabled = false;
     setToolBusy(false);

@@ -84,7 +84,7 @@ compressBtn.addEventListener("click", async () => {
     if (saved === 0) setStatus("This PDF was already well compressed — the copy is the same size.", "");
   } catch (err) {
     console.error(err);
-    setStatus(err.message || "Compression failed. Please try again.", "error");
+    setStatus(explainProcessingError(err, "Compressing this PDF", items[0] && items[0].file.name), "error");
   } finally {
     compressBtn.disabled = false;
     setToolBusy(false);

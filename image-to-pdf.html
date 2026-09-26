@@ -39,7 +39,7 @@
         "operatingSystem": "Any",
         "description": "Convert JPG, PNG, WebP, GIF, BMP and other browser-supported images to PDF. Capture, crop, rotate and reorder images privately in your browser.",
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-        "featureList": ["Convert browser-supported image formats to PDF", "Capture photos from a live camera or device camera picker", "Crop, rotate and reorder images before conversion"]
+        "featureList": ["Convert browser-supported image formats to PDF", "Capture photos from a live camera or device camera picker", "Review, crop, rotate and reorder photos before conversion"]
       },
       {
         "@type": "BreadcrumbList",
@@ -160,9 +160,22 @@
         <div><span class="camera-eyebrow">IMAGE TO PDF</span><h2 id="cameraTitle">Take a photo</h2></div>
         <button class="camera-close" id="cameraClose" type="button" aria-label="Close camera">×</button>
       </header>
-      <div class="camera-stage"><video id="cameraVideo" autoplay playsinline muted></video><div class="camera-placeholder" id="cameraPlaceholder">Your camera preview will appear here.</div></div>
+      <div class="camera-stage" id="cameraStage"><video id="cameraVideo" autoplay playsinline muted></video><div class="camera-placeholder" id="cameraPlaceholder">Your camera preview will appear here.</div></div>
+      <div class="camera-review" id="cameraReview" hidden>
+        <div class="camera-review-image"><img id="cameraReviewImage" alt="Captured photo preview" /></div>
+        <p class="camera-review-name" id="cameraReviewName"></p>
+        <div class="camera-review-tools">
+          <button class="btn btn-ghost" id="cameraCrop" type="button">Crop photo</button>
+          <button class="btn btn-ghost" id="cameraRotate" type="button">Rotate photo</button>
+          <button class="btn btn-ghost" id="cameraRetake" type="button">Retake</button>
+        </div>
+        <div class="camera-review-actions">
+          <button class="btn btn-ghost" id="cameraUseClose" type="button">Add photo &amp; close camera</button>
+          <button class="btn btn-primary" id="cameraUseContinue" type="button">Add photo &amp; continue</button>
+        </div>
+      </div>
       <p class="camera-status" id="cameraStatus" role="status" aria-live="polite">Allow camera access when your browser asks.</p>
-      <div class="camera-actions">
+      <div class="camera-actions" id="cameraActions">
         <button class="btn btn-ghost" id="cameraSwitch" type="button">Switch camera</button>
         <button class="btn btn-ghost" id="cameraFallback" type="button">Camera / photo picker</button>
         <button class="btn btn-primary" id="cameraCapture" type="button" disabled>Capture photo</button>

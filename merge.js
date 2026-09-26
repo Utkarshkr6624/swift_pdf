@@ -56,7 +56,7 @@ convertBtn.addEventListener("click", async () => {
     }
   } catch (err) {
     console.error(err);
-    setStatus(err.message || "Merge failed. This PDF may be corrupted or require an open password.", "error");
+    setStatus(explainProcessingError(err, "Merging these PDFs", items[0] && items[0].file.name), "error");
   } finally {
     convertBtn.disabled = false;
     setToolBusy(false);

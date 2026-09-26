@@ -65,12 +65,16 @@
     "mainEntity": [
       {"@type": "Question", "name": "Are my files uploaded anywhere?", "acceptedAnswer": {"@type": "Answer", "text": "No. Your images and PDFs are processed in your browser and are not uploaded to SwiftPDF. PDF tools may need an internet connection to load their processing libraries."}},
       {"@type": "Question", "name": "Is SwiftPDF free?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. SwiftPDF is free to use and does not require an account. The number and size of files a browser can process depend on the device's available memory."}},
-      {"@type": "Question", "name": "How do I convert images to one PDF?", "acceptedAnswer": {"@type": "Answer", "text": "Open the Image to PDF tool, add browser-supported image files or capture photos, arrange them in the edit view, and click Convert to PDF. The whole process takes place on your device."}},
-      {"@type": "Question", "name": "Can I take a photo directly for my PDF?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Open Image to PDF and choose Take a photo. Allow camera access to use the live preview, or choose Camera / photo picker for your device's capture and photo options. Live camera access requires a secure site connection such as HTTPS or localhost."}},
+      {"@type": "Question", "name": "How do I convert JPG images to one PDF?", "acceptedAnswer": {"@type": "Answer", "text": "Open the Image to PDF tool, add browser-supported image files or capture photos, arrange them in the edit view, and click Convert to PDF. The whole process takes place on your device."}},
+      {"@type": "Question", "name": "Can I take a photo directly for my PDF?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Open Image to PDF and choose Take a photo. Each shot opens in a review box where you can crop or rotate it, add it and keep shooting, or add it and close the camera. Live camera access requires a secure site connection such as HTTPS or localhost."}},
       {"@type": "Question", "name": "Can I merge Word or PowerPoint files?", "acceptedAnswer": {"@type": "Answer", "text": "Not yet. Export them to PDF first, then merge them with the Merge PDF tool."}}
       ,{"@type": "Question", "name": "Can I reorder or extract pages from a PDF?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Use Organize PDF Pages to reorder, rotate, remove, split, or extract pages in your browser."}}
       ,{"@type": "Question", "name": "Can I add page numbers to a PDF?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Use Add Page Numbers to choose the starting number, size, and position."}}
       ,{"@type": "Question", "name": "Can I change a PDF to dark mode or custom colors?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Change PDF Theme offers dark, sepia, midnight blue, sage, and custom primary, secondary, and text colors. Preview the pages before downloading. The pages are saved as images, so text is no longer selectable."}}
+      ,{"@type": "Question", "name": "Can SwiftPDF unlock any password-protected PDF?", "acceptedAnswer": {"@type": "Answer", "text": "No. An open-password PDF needs its correct password. SwiftPDF does not guess or crack passwords. Files with permission restrictions may be processed when the browser PDF tools can read them."}}
+      ,{"@type": "Question", "name": "Will PDF compression keep text selectable?", "acceptedAnswer": {"@type": "Answer", "text": "Compression re-encodes pages as images to reduce file size, so text search, selection, links, and signatures may not be preserved. Preview the output and keep your original."}}
+      ,{"@type": "Question", "name": "Can the watermark remover erase every watermark?", "acceptedAnswer": {"@type": "Answer", "text": "It can remove supported watermark annotations. A watermark flattened into page artwork cannot be reliably removed, especially when it covers original content."}}
+      ,{"@type": "Question", "name": "Can I process a very large PDF on my phone?", "acceptedAnswer": {"@type": "Answer", "text": "Processing runs in your browser and depends on your device's available memory. If a large file is slow or fails, try fewer pages at a time or use a device with more available memory."}}
     ]
   }
   </script>
@@ -209,7 +213,7 @@
           </details>
           <details class="faq-item">
             <summary>Can I take a photo directly for my PDF?</summary>
-            <p>Yes. Open Image to PDF and choose Take a photo. Allow camera access to use the live preview, or choose Camera / photo picker for your device's capture and photo options. Live camera access requires a secure site connection such as HTTPS or localhost.</p>
+            <p>Yes. Open Image to PDF and choose Take a photo. Each shot opens in a review box where you can crop or rotate it, add it and keep shooting, or add it and close the camera. Live camera access requires a secure site connection such as HTTPS or localhost.</p>
           </details>
           <details class="faq-item">
             <summary>Can I merge Word or PowerPoint files?</summary>
@@ -224,8 +228,24 @@
             <p>Yes. Use Add Page Numbers to choose where the numbers go, their size, and the starting number.</p>
           </details>
           <details class="faq-item">
-            <summary>Can I change a PDF to dark mode?</summary>
+            <summary>Can I change a PDF to dark mode or custom colors?</summary>
             <p>Yes. Change PDF Theme offers preset palettes or your own primary, secondary, and text colors, with a page-by-page preview before download. The themed pages are saved as images, so text is no longer selectable.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Can SwiftPDF unlock any password-protected PDF?</summary>
+            <p>No. An open-password PDF needs its correct password. SwiftPDF does not guess or crack passwords. Files with permission restrictions may be processed when the browser PDF tools can read them.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Will PDF compression keep text selectable?</summary>
+            <p>Compression re-encodes pages as images to reduce file size, so text search, selection, links, and signatures may not be preserved. Preview the output and keep your original.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Can the watermark remover erase every watermark?</summary>
+            <p>It can remove supported watermark annotations. A watermark flattened into page artwork cannot be reliably removed, especially when it covers original content.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Can I process a very large PDF on my phone?</summary>
+            <p>Processing runs in your browser and depends on your device's available memory. If a large file is slow or fails, try fewer pages at a time or use a device with more available memory.</p>
           </details>
         </div>
       </div>

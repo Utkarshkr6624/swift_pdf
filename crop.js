@@ -14,7 +14,7 @@ function openCrop(file) {
     img.onload = () => {
       URL.revokeObjectURL(url);
       // show the overlay FIRST so the dialog has real dimensions to measure
-      overlay.hidden = false;
+      showModalOverlay(overlay);
       setupCropUI(img, resolve, file);
     };
     img.onerror = () => {
@@ -47,7 +47,7 @@ function setupCropUI(img, resolve, file) {
     canvas.style.height = H + "px";
     const context = canvas.getContext("2d");
     if (!context) {
-      overlay.hidden = true;
+      hideModalOverlay(overlay);
       setStatus("This browser could not prepare the crop preview.", "error");
       cropState = null;
       resolve(null);
@@ -226,15 +226,17 @@ function cancelCrop() {
 }
 
 function closeCrop() {
-  document.getElementById("cropOverlay").hidden = true;
+  hideModalOverlay(document.getElementById("cropOverlay"));
   cropState = null;
 }
 
-// click outside the crop dialog or press Escape cancels the crop
+// Pressing outside the crop dialog or Escape cancels the crop (mouse and touch).
 document.addEventListener("DOMContentLoaded", () => {
   const overlay = document.getElementById("cropOverlay");
   if (!overlay) return;
-  overlay.addEventListener("click", (e) => { if (e.target === overlay && cropState) cancelCrop(); });
+  overlay.addEventListener("pointerdown", (e) => {
+    if (e.button === 0 && e.target === overlay && cropState) cancelCrop();
+  });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && cropState) cancelCrop();
   });

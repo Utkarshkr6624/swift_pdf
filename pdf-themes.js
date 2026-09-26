@@ -67,19 +67,36 @@
     return { primary: preset.paper, secondary, text: preset.ink };
   }
 
+  function syncCustomPreview() {
+    const colors = colorFields.map(({ hex }) => parseHex(hex.value));
+    const customSwatch = document.querySelector(".swatch-custom");
+    if (customSwatch && colors.every(Boolean)) {
+      customSwatch.style.setProperty("--custom-primary", `#${colorFields[0].hex.value.replace(/^#/, "")}`);
+      customSwatch.style.setProperty("--custom-secondary", `#${colorFields[1].hex.value.replace(/^#/, "")}`);
+      customSwatch.style.setProperty("--custom-text", `#${colorFields[2].hex.value.replace(/^#/, "")}`);
+    }
+    customColorError.hidden = colors.every(Boolean);
+  }
+
   colorFields.forEach(({ picker, hex }) => {
-    picker.addEventListener("input", () => {
+    const syncHex = () => {
       hex.value = picker.value;
       hex.removeAttribute("aria-invalid");
-      customColorError.hidden = colorFields.every((field) => parseHex(field.hex.value));
-    });
-    hex.addEventListener("input", () => {
+      syncCustomPreview();
+    };
+    const syncPicker = () => {
       const rgb = parseHex(hex.value);
       hex.setAttribute("aria-invalid", String(!rgb));
       if (rgb) picker.value = `#${hex.value.replace(/^#/, "")}`.toLowerCase();
-      customColorError.hidden = colorFields.every((field) => parseHex(field.hex.value));
-    });
+      syncCustomPreview();
+    };
+    // Some mobile color controls commit with change rather than input.
+    picker.addEventListener("input", syncHex);
+    picker.addEventListener("change", syncHex);
+    hex.addEventListener("input", syncPicker);
+    hex.addEventListener("change", syncPicker);
   });
+  syncCustomPreview();
 
   async function renderPreviewPage(pageNumber) {
     if (!previewPdf || previewRendering) return;
@@ -181,7 +198,8 @@
       item.setAttribute("aria-pressed", String(active));
     });
     customThemePanel.hidden = selectedTheme !== "custom";
-    customColorError.hidden = true;
+    if (selectedTheme === "custom") syncCustomPreview();
+    else customColorError.hidden = true;
     themeHint.textContent = `${option.querySelector("strong").textContent} theme selected.`;
   }));
 
@@ -263,8 +281,8 @@
       setStatus(`Done. ${pdf.numPages} page${pdf.numPages === 1 ? "" : "s"} recolored.`, "success");
     } catch (error) {
       const message = error && error.name === "PasswordException"
-        ? "This PDF requires an open password. Unlock it before applying a theme."
-        : error && error.message ? error.message : "Could not recolor this PDF. Try a different file.";
+        ? "This PDF requires an open password. Enter the correct password in the Unlock PDF tool first, then try the theme again."
+        : explainProcessingError(error, "Changing this PDF theme", selectedFile && selectedFile.name);
       setStatus(message, "error");
     } finally {
       if (pdf) await pdf.destroy();

@@ -1,5 +1,57 @@
 // Shared helpers used by every tool page.
 
+// Keep modal dismissal consistent and give the backdrop a brief exit motion.
+// The token prevents an old transition callback from hiding a modal reopened quickly.
+function showModalOverlay(overlay) {
+  if (!overlay) return;
+  clearTimeout(overlay._swiftPdfCloseTimer);
+  if (overlay._swiftPdfCloseHandler) {
+    overlay.removeEventListener("transitionend", overlay._swiftPdfCloseHandler);
+    overlay._swiftPdfCloseHandler = null;
+  }
+  overlay._swiftPdfCloseToken = (overlay._swiftPdfCloseToken || 0) + 1;
+  overlay.classList.remove("is-closing");
+  overlay.inert = false;
+  overlay.removeAttribute("aria-hidden");
+  overlay.hidden = false;
+}
+
+function hideModalOverlay(overlay, onHidden) {
+  if (!overlay || overlay.hidden) {
+    if (onHidden) onHidden();
+    return;
+  }
+
+  const token = (overlay._swiftPdfCloseToken || 0) + 1;
+  overlay._swiftPdfCloseToken = token;
+  overlay.inert = true;
+  overlay.setAttribute("aria-hidden", "true");
+
+  const finish = (event) => {
+    if (event && (event.target !== overlay || event.propertyName !== "opacity")) return;
+    if (overlay._swiftPdfCloseToken !== token) return;
+    clearTimeout(overlay._swiftPdfCloseTimer);
+    overlay.removeEventListener("transitionend", finish);
+    overlay._swiftPdfCloseHandler = null;
+    overlay.hidden = true;
+    overlay.classList.remove("is-closing");
+    overlay.inert = false;
+    overlay.removeAttribute("aria-hidden");
+    if (onHidden) onHidden();
+  };
+
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    finish();
+    return;
+  }
+
+  overlay._swiftPdfCloseHandler = finish;
+  overlay.addEventListener("transitionend", finish);
+  overlay.classList.add("is-closing");
+  // Fallback for browsers that skip transitionend when the tab is backgrounded.
+  overlay._swiftPdfCloseTimer = setTimeout(finish, 240);
+}
+
 /* ---------- File strip (horizontal, with per-file "…" menu) ---------- */
 function placeChipMenu(menu, btn) {
   const r = btn.getBoundingClientRect();
@@ -355,7 +407,7 @@ function explainProcessingError(error, action, filename) {
   if (name === "AbortError" || /usercancelled|user canceled|operation was aborted/i.test(message)) {
     return "Processing was interrupted. Choose the file again and retry when you are ready.";
   }
-  if (/passwordexception|password.?protected|incorrect password|password was not accepted|encrypted.*password/i.test(lower)) {
+  if (/passwordexception|password.?protected|incorrect password|password was not accepted|requires? (?:an? )?open password|encrypted/i.test(lower)) {
     return `${subject} needs its correct open password. Enter the password and try again; SwiftPDF cannot recover or guess it.`;
   }
   if (/out of memory|memory limit|allocation failed|quotaexceeded|array buffer allocation/i.test(lower)) {
@@ -474,7 +526,8 @@ function showResult(blob, filename, extension = "pdf") {
     if (actions && actions !== bar) actions.insertBefore(preview, download);
     else bar.insertBefore(preview, download);
   }
-  if (preview) {
+  if (preview && !preview.hasAttribute("aria-controls")) preview.hidden = extension !== "pdf";
+  if (preview && !preview.hasAttribute("aria-controls")) {
     preview.setAttribute("aria-label", `Preview ${extension.toUpperCase()} output`);
     preview.onclick = () => {
       const opened = window.open(url, "_blank");
@@ -491,10 +544,10 @@ function showResult(blob, filename, extension = "pdf") {
   bar.classList.remove("revealed");
   void bar.offsetWidth;
   bar.classList.add("revealed");
-  setStatus(`Your ${extension.toUpperCase()} is ready. Preview it or download it.`, "success");
+  setStatus(`Your ${extension.toUpperCase()} is ready. ${preview && extension === "pdf" ? "Preview it or download it." : "Download it when you are ready."}`, "success");
   bar.focus({ preventScroll: true });
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  bar.scrollIntoView({ behavior: reducedMotion ? "instant" : "smooth", block: "nearest" });
+  bar.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "nearest" });
   return url;
 }
 

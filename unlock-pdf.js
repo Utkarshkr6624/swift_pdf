@@ -73,7 +73,7 @@ convertBtn.addEventListener("click", async () => {
     }
   } catch (err) {
     console.error(err);
-    setStatus(err.message || "Could not unlock this PDF. It may be damaged or use unsupported encryption.", "error");
+    setStatus(explainProcessingError(err, "Unlocking this PDF", item.file.name), "error");
   } finally {
     convertBtn.disabled = false;
     setToolBusy(false);

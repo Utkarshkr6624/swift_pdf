@@ -68,7 +68,7 @@ convertBtn.addEventListener("click", async () => {
     setStatus(`Done — ${total} image${total === 1 ? "" : "s"} packed into one ZIP download.`, "success");
   } catch (err) {
     console.error(err);
-    setStatus(err.message || "Conversion failed. Please try again.", "error");
+    setStatus(explainProcessingError(err, "Converting this PDF to images", items[0] && items[0].file.name), "error");
   } finally {
     convertBtn.disabled = false;
     setToolBusy(false);

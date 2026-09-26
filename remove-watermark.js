@@ -56,7 +56,7 @@ convertBtn.addEventListener("click", async () => {
     setStatus(`Removed ${removed} watermark annotation${removed === 1 ? "" : "s"}.`, "success");
   } catch (err) {
     console.error(err);
-    setStatus("Could not process this PDF. It may be corrupted, encrypted, or use unsupported annotations.", "error");
+    setStatus(explainProcessingError(err, "Checking watermark annotations in this PDF", item.file.name), "error");
   } finally {
     convertBtn.disabled = false;
     setToolBusy(false);
