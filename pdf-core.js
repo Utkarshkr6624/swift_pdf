@@ -167,6 +167,13 @@ function createFileStrip({ input, stripEl, accept, toolbar, extraMenu, onChange 
   }, { passive: true });
   window.addEventListener("resize", updateArrows);
 
+  wireTouchSort(strip, ".chip", (chip) => chip._fileStripItem, (ordered, rects) => {
+    if (ordered.length !== items.length || ordered.some((entry) => !items.includes(entry))) return;
+    items = ordered;
+    hideResultBar();
+    render({ rects, fromIndex: -1 });
+  });
+
   let dragFrom = -1; // index currently being drag-reordered
 
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;

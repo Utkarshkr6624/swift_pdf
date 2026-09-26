@@ -25,7 +25,7 @@
 <body>
   <nav class="nav"><div class="nav-inner"><div class="nav-left"><a class="logo" href="index.html">SwiftPDF</a><button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle dark mode">◐</button></div><div class="nav-links"><a href="index.html">Home</a><a href="about.html">About</a><a href="contact.html">Contact</a></div></div></nav>
   <main>
-    <div class="page-head container"><a class="back" href="index.html">&larr; All tools</a><h1>Organize PDF Pages</h1><p>Drag pages to reorder them, rotate, crop or remove pages, add and crop image pages, extract selected pages, or split the PDF into one file per page. On phones, press and hold a page to move it. Your document stays on this device.</p></div>
+    <div class="page-head container"><a class="back" href="index.html">&larr; All tools</a><h1>Organize PDF Pages</h1><p>Drag pages to reorder them, rotate, crop or remove pages, add and crop image pages, extract selected pages, or split the PDF into one file per page. On phones, drag a page thumbnail to reorder it, or use the arrows to scroll the page list. Your document stays on this device.</p></div>
     <div class="container organizer-container">
       <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Choose a PDF or drop it here"><h3>Select a PDF</h3><p>or drag &amp; drop it here</p><button class="btn btn-primary" type="button" onclick="event.stopPropagation(); fileInput.click()">Choose PDF</button><input id="fileInput" type="file" accept="application/pdf,.pdf" hidden /></div>
       <div class="organizer-heading" id="organizerHeading" hidden><h2 id="documentName"></h2><span id="pageCount" class="toolbar-hint"></span></div>

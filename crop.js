@@ -47,7 +47,7 @@ function setupCropUI(img, resolve, file) {
     canvas.style.height = H + "px";
     const context = canvas.getContext("2d");
     if (!context) {
-      hideModalOverlay(overlay);
+      hideModalOverlay(document.getElementById("cropOverlay"));
       setStatus("This browser could not prepare the crop preview.", "error");
       cropState = null;
       resolve(null);
@@ -220,6 +220,7 @@ function resetCrop() {
 }
 
 function cancelCrop() {
+  if (!cropState) return;
   const { resolve } = cropState;
   closeCrop();
   resolve(null);

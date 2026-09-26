@@ -307,7 +307,7 @@ a { color: inherit; text-decoration: none; }
 }
 .ws-cell:hover { border-color: var(--blue); box-shadow: 0 8px 20px rgba(var(--shadow-color), 0.12); transform: translateY(-2px); }
 .ws-cell.ws-dragging, .ws-cell.ws-dragging:hover { opacity: 0.5; cursor: grabbing; transform: none; transition: none; }
-.ws-cell.touch-dragging, .page-card.touch-dragging { position: relative; z-index: 3; opacity: .68; cursor: grabbing; outline: 2px dashed var(--blue); outline-offset: 2px; transform: scale(.98); }
+.chip.touch-dragging, .ws-cell.touch-dragging, .page-card.touch-dragging { position: relative; z-index: 3; opacity: .68; cursor: grabbing; outline: 2px dashed var(--blue); outline-offset: 2px; transform: scale(.98); }
 .ws-grid:has(.ws-dragging) .ws-cell:not(.ws-dragging) { transition: none; }
 .ws-cell img { width: 100%; height: 110px; object-fit: cover; border-radius: 9px; display: block; background: var(--tint); }
 .ws-filename {

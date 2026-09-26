@@ -265,6 +265,18 @@ function initWorkspaceUI() {
       closeWorkspace();
     }
   });
+
+  const grid = document.getElementById("wsGrid");
+  if (grid) {
+    wireTouchSort(grid, ".ws-cell", (cell) => cell._item, (ordered) => {
+      if (!wsStrip || ordered.length !== wsStrip.items.length) return;
+      if (ordered.some((entry) => !wsStrip.items.includes(entry))) return;
+      hideResultBar();
+      wsStrip.items.splice(0, wsStrip.items.length, ...ordered);
+      renumberCells();
+      wsStrip.render();
+    });
+  }
 }
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initWorkspaceUI);
 else initWorkspaceUI();

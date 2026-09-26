@@ -411,7 +411,7 @@ function renderEditor() {
   add.innerHTML = '<span class="ws-add-plus">+</span>Add images';
   add.addEventListener("click", () => imageInput.click());
   editorGrid.appendChild(add);
-  document.getElementById("editorCount").textContent = `${pageItems.length} page${pageItems.length === 1 ? "" : "s"} · drag to reorder. On phones, press and hold a page to drag it.`;
+  document.getElementById("editorCount").textContent = `${pageItems.length} page${pageItems.length === 1 ? "" : "s"} · drag to reorder. On phones, drag a page to move it.`;
 }
 
 function addEditorAction(container, label, title, action) {
