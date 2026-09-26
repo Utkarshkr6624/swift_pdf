@@ -11,7 +11,7 @@
   <script>(function(){var t=null;try{t=localStorage.getItem("swiftpdf-theme")}catch(e){}if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content=t;})();</script>
   <title>SwiftPDF — Free Private PDF Tools</title>
   <meta name="color-scheme" content="light dark" />
-  <meta name="keywords" content="pdf tools, image to pdf, jpg to pdf, merge pdf, compress pdf, pdf to image, free pdf converter" />
+  <meta name="keywords" content="pdf tools, image to pdf, jpg to pdf, merge pdf, compress pdf, pdf to image, edit pdf, free pdf converter" />
   <meta name="robots" content="index, follow" />
   <meta name="author" content="SwiftPDF" />
   <meta name="theme-color" content="#2f6bff" />
@@ -53,7 +53,8 @@
       "Reorder, rotate, split, and extract PDF pages",
       "Crop PDF pages and add image pages to PDFs",
       "Add page numbers to PDFs",
-      "Recolor PDF pages with preset or custom colors and preview the result"
+      "Recolor PDF pages with preset or custom colors and preview the result",
+      "Edit and replace text in PDF pages while keeping the original layout"
     ],
     "audience": { "@type": "Audience", "audienceType": "General users" }
   }
@@ -71,6 +72,7 @@
       ,{"@type": "Question", "name": "Can I reorder or extract pages from a PDF?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Use Organize PDF Pages to reorder, rotate, remove, split, or extract pages in your browser."}}
       ,{"@type": "Question", "name": "Can I add page numbers to a PDF?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Use Add Page Numbers to choose the starting number, size, and position."}}
       ,{"@type": "Question", "name": "Can I change a PDF to dark mode or custom colors?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Change PDF Theme offers dark, sepia, midnight blue, sage, and custom primary, secondary, and text colors. Preview the pages before downloading. The pages are saved as images, so text is no longer selectable."}}
+      ,{"@type": "Question", "name": "How does the PDF text editor work?", "acceptedAnswer": {"@type": "Answer", "text": "Open Edit PDF, click any text on the page, and type a replacement. The original text is covered and the new text is written on top in the same position and size, using the closest matching standard font. Text cannot reflow, so keep replacements close in length. Scanned or image-only PDFs, and PDFs whose text has been turned into outlines, cannot be edited."}}
       ,{"@type": "Question", "name": "Can SwiftPDF unlock any password-protected PDF?", "acceptedAnswer": {"@type": "Answer", "text": "No. An open-password PDF needs its correct password. SwiftPDF does not guess or crack passwords. Files with permission restrictions may be processed when the browser PDF tools can read them."}}
       ,{"@type": "Question", "name": "Will PDF compression keep text selectable?", "acceptedAnswer": {"@type": "Answer", "text": "Compression re-encodes pages as images to reduce file size, so text search, selection, links, and signatures may not be preserved. Preview the output and keep your original."}}
       ,{"@type": "Question", "name": "Can the watermark remover erase every watermark?", "acceptedAnswer": {"@type": "Answer", "text": "It can remove supported watermark annotations. A watermark flattened into page artwork cannot be reliably removed, especially when it covers original content."}}
@@ -124,7 +126,7 @@
         <aside class="hero-facts" aria-label="What to expect from SwiftPDF">
           <div class="hero-fact"><span class="hero-fact-number">01</span><p><strong>Files stay local</strong><small>Your documents stay on your device.</small></p></div>
           <div class="hero-fact"><span class="hero-fact-number">02</span><p><strong>No account needed</strong><small>Open a tool and get straight to work.</small></p></div>
-          <div class="hero-fact"><span class="hero-fact-number">09</span><p><strong>Useful PDF tools</strong><small>Convert, merge, organize, and more.</small></p></div>
+          <div class="hero-fact"><span class="hero-fact-number">10</span><p><strong>Useful PDF tools</strong><small>Convert, merge, organize, and more.</small></p></div>
         </aside>
       </div>
     </section>
@@ -187,6 +189,10 @@
             <span class="tool-glyph">◐</span>
             <span><h3>Change PDF Theme</h3><p>Use preset or custom colors, then preview pages before downloading.</p></span>
           </a>
+          <a class="tool-row" href="edit-pdf.html">
+            <span class="tool-glyph">✎</span>
+            <span><h3>Edit PDF Text</h3><p>Replace text in a PDF while keeping the original layout and styling.</p></span>
+          </a>
         </div>
       </div>
     </section>
@@ -230,6 +236,10 @@
           <details class="faq-item">
             <summary>Can I change a PDF to dark mode or custom colors?</summary>
             <p>Yes. Change PDF Theme offers preset palettes or your own primary, secondary, and text colors, with a page-by-page preview before download. The themed pages are saved as images, so text is no longer selectable.</p>
+          </details>
+          <details class="faq-item">
+            <summary>How does the PDF text editor work?</summary>
+            <p>Open Edit PDF, click any text on the page, and type a replacement. The original text is covered and the new text is written on top in the same position and size, using the closest matching standard font a PDF viewer can draw. Text cannot reflow, so keep replacements close in length. Scanned or image-only PDFs, and PDFs whose text has been turned into outlines, cannot be edited.</p>
           </details>
           <details class="faq-item">
             <summary>Can SwiftPDF unlock any password-protected PDF?</summary>

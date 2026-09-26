@@ -1191,3 +1191,130 @@ body { font-size: 1rem; line-height: 1.7; }
 @media (prefers-reduced-motion: reduce) {
   .status.working::before { animation: none; border-color: var(--blue); }
 }
+
+/* ---------- Edit PDF: canvas stage + control panel ----------
+   Every colour comes from a token (or a color-mix of tokens) so the editor
+   reads correctly in both the light and the dark theme. */
+
+/* Two-column workspace: page stage on the left, fixed-width panel on the right.
+   Scoped with :not(.ws-grid) because the page organizer reuses #editorGrid. */
+#editorGrid:not(.ws-grid) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 14px;
+  align-items: start;
+  margin-top: 16px;
+  min-width: 0;
+}
+
+.ed-shell { min-width: 0; }
+.ed-shell[hidden] { display: none; }
+
+/* Toolbar above the workspace: page navigation + page-level actions. */
+.ed-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+  margin-top: 18px; padding: 11px 13px;
+  border: 1px solid var(--line); border-radius: 11px; background: var(--card);
+}
+.ed-toolbar-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.ed-pagenav { color: var(--ink-soft); font-size: .9rem; font-weight: 600; }
+.ed-page-btn { padding: 7px 13px; }
+.ed-page-btn.is-active { background: var(--blue); border-color: var(--blue); color: var(--button-text); }
+.ed-page-btn.is-active:hover { background: var(--blue-dark); border-color: var(--blue-dark); color: var(--button-text); }
+
+/* Stage: the rendered page, scrollable when the page is taller than the window. */
+.ed-stage {
+  min-width: 0; padding: 14px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+  box-shadow: 0 14px 40px rgba(var(--shadow-color), .14);
+  overflow: auto; max-height: 78vh; overscroll-behavior: contain;
+  scrollbar-width: thin; -webkit-overflow-scrolling: touch;
+}
+.ed-canvas-wrap { position: relative; display: inline-block; max-width: 100%; margin: 0 auto; }
+.ed-canvas-wrap canvas { display: block; max-width: 100%; height: auto; border-radius: 3px; }
+
+/* Overlay: one transparent, clickable box per text item on the page. */
+.ed-overlay { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.ed-box {
+  position: absolute; margin: 0; padding: 0; box-sizing: border-box;
+  border: 0; border-radius: 3px; background: transparent;
+  font-family: var(--font-body); line-height: 1.25;
+  white-space: pre-wrap; overflow-wrap: break-word; overflow: hidden;
+  text-align: left; text-decoration: none; appearance: none;
+  color: transparent; cursor: text; pointer-events: auto;
+  outline: 1px dashed transparent; outline-offset: -1px;
+  transition: background .15s ease, outline-color .15s ease;
+}
+.ed-box:hover { outline-color: color-mix(in srgb, var(--blue) 55%, transparent); }
+.ed-box:focus-visible { outline: 2px solid var(--blue); outline-offset: -1px; }
+.ed-box.is-selected {
+  background: color-mix(in srgb, var(--blue) 10%, transparent);
+  outline: 2px solid var(--blue); outline-offset: -1px;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--blue) 18%, transparent);
+}
+.ed-box.is-edited { background: var(--tint); color: var(--ink); }
+.ed-box.is-edited:hover { outline-color: var(--blue); }
+.ed-box.is-selected.is-edited { background: color-mix(in srgb, var(--blue) 12%, var(--tint)); }
+
+/* Control panel. */
+.ed-panel {
+  min-width: 0; display: grid; gap: 12px; align-content: start;
+  padding: 14px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--card);
+}
+.ed-panel-row { display: grid; gap: 6px; align-items: center; min-width: 0; }
+.ed-field { color: var(--ink-soft); font-size: .84rem; font-weight: 600; }
+.ed-field > label { line-height: 1.4; }
+.ed-field h3 { color: var(--ink); font-size: .95rem; font-weight: 600; }
+.ed-field .name-input { width: 100%; min-width: 0; }
+.ed-field textarea.name-input { resize: vertical; min-height: 82px; line-height: 1.5; }
+.ed-field select.name-input { padding: 8px 10px; }
+.ed-field input[type="color"] {
+  width: 100%; height: 38px; padding: 3px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--card); cursor: pointer;
+}
+.ed-field input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--blue); }
+.ed-field:has(input[type="checkbox"]) { grid-auto-flow: column; grid-auto-columns: max-content; justify-content: start; align-items: center; gap: 8px 16px; }
+.ed-field .btn { margin-top: 0; width: 100%; }
+
+/* Scrollable list of the current page's text items. */
+.ed-list {
+  display: grid; gap: 2px; max-height: 210px; overflow-y: auto;
+  overscroll-behavior: contain; scrollbar-width: thin;
+  border: 1px solid var(--line); border-radius: 8px; padding: 4px; background: var(--card);
+}
+.ed-item {
+  display: block; width: 100%; text-align: left; cursor: pointer;
+  padding: 7px 9px; border: 0; border-radius: 6px; background: transparent;
+  color: var(--ink); font-family: var(--font-body); font-size: .84rem; line-height: 1.4;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: background .15s ease, color .15s ease;
+}
+.ed-item:hover { background: var(--tint); }
+.ed-item.is-active { background: var(--blue); color: var(--button-text); font-weight: 600; }
+
+/* Save row + the honest limitation note. */
+.ed-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.ed-legend {
+  margin-top: 14px; padding: 11px 13px;
+  border: 1px solid var(--line); border-left: 3px solid var(--blue); border-radius: 8px;
+  background: var(--card); color: var(--ink-soft); font-size: .84rem; line-height: 1.6;
+}
+
+@media (max-width: 860px) {
+  #editorGrid:not(.ws-grid) { grid-template-columns: minmax(0, 1fr); }
+  .ed-stage { max-height: 62vh; }
+  .ed-toolbar { flex-direction: column; align-items: stretch; text-align: center; }
+  .ed-pagenav { justify-content: center; }
+  .ed-actions .btn { flex: 1 1 auto; }
+}
+@media (max-width: 540px) {
+  .ed-stage, .ed-panel { padding: 10px; }
+  .ed-stage { max-height: 55vh; }
+  .ed-list { max-height: 170px; }
+  .ed-actions { display: grid; grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ed-box, .ed-item { transition: none; }
+}
