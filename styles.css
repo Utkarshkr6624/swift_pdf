@@ -14,6 +14,7 @@
   --ok-border: #c9e9d8;
   --ok-text: #126947;
   --shadow-color: 25, 34, 55;
+  --scroll-track: rgba(15, 23, 42, .10);
   --radius: 18px;
   --font-display: "Sora", sans-serif;
   --font-body: "Inter", sans-serif;
@@ -33,6 +34,7 @@
   --ok-border: #28543e;
   --ok-text: #8be0b6;
   --shadow-color: 0, 0, 0;
+  --scroll-track: rgba(255, 255, 255, .07);
   --red: #ff858a;
   --green: #54d39b;
 }
@@ -1197,7 +1199,8 @@ body { font-size: 1rem; line-height: 1.7; }
    reads correctly in both the light and the dark theme. */
 
 /* Two-column workspace: page stage on the left, fixed-width panel on the right.
-   Scoped with :not(.ws-grid) because the page organizer reuses #editorGrid. */
+   Scoped with :not(.ws-grid) because the page organizer reuses #editorGrid.
+   The minmax(0, 1fr) track is what keeps a wide page from stretching the grid. */
 #editorGrid:not(.ws-grid) {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 300px;
@@ -1210,29 +1213,120 @@ body { font-size: 1rem; line-height: 1.7; }
 .ed-shell { min-width: 0; }
 .ed-shell[hidden] { display: none; }
 
-/* Toolbar above the workspace: page navigation + page-level actions. */
+/* Toolbar above the workspace: page navigation, zoom, page-level actions.
+   Every group wraps instead of pushing the toolbar wider than a 360px screen. */
 .ed-toolbar {
   display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; flex-wrap: wrap;
+  gap: 10px 12px; flex-wrap: wrap;
   margin-top: 18px; padding: 11px 13px;
   border: 1px solid var(--line); border-radius: 11px; background: var(--card);
 }
 .ed-toolbar-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
 .ed-pagenav { color: var(--ink-soft); font-size: .9rem; font-weight: 600; }
-.ed-page-btn { padding: 7px 13px; }
+.ed-page-btn { padding: 7px 13px; white-space: nowrap; }
 .ed-page-btn.is-active { background: var(--blue); border-color: var(--blue); color: var(--button-text); }
 .ed-page-btn.is-active:hover { background: var(--blue-dark); border-color: var(--blue-dark); color: var(--button-text); }
 
-/* Stage: the rendered page, scrollable when the page is taller than the window. */
+/* Page badge: "1 / 3". The toolbar's height is set by its buttons, so the badge
+   is a fixed-height pill that centres itself and can never push the row taller.
+   A min-width plus tabular numerals keeps it the same size every time the number
+   changes, so the Prev/Next buttons either side do not shuffle sideways. */
+#pageCounter {
+  align-self: center; flex: 0 0 auto;
+  /* Fixed, not min-width: a 100-page document widened the pill by 35px and shoved
+     the Next button sideways. Sized to hold "100 / 100"; longer counts clip rather
+     than reflow the toolbar. */
+  width: 68px; height: 30px; padding: 0 6px;
+  box-sizing: border-box; white-space: nowrap; overflow: hidden;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: var(--tint); color: var(--ink-soft);
+  font-size: .78rem; font-weight: 600; line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Rounded, themed scrollbars ----------
+   The browser default is a thick grey slab that reads as a glitch next to the
+   rest of the UI. A transparent track plus a fully rounded thumb gives a small
+   floating pill, and the two tokens above keep it correct in both themes.
+   Applied to the two scrollable surfaces in the editor: the page-chip strip
+   (horizontal) and the page preview (vertical).
+
+   The standard scrollbar properties are deliberately NOT applied in WebKit
+   browsers. Setting scrollbar-width/scrollbar-color there makes Chrome switch
+   to its own standard scrollbar and ignore every ::-webkit-scrollbar-* rule
+   below, which is what produced a chunky blue bar with arrow buttons at each
+   end. Firefox has no ::-webkit support, so it gets the standard properties
+   and everything else gets the rounded pill. */
+@supports not (-webkit-appearance: none) {
+  #pageChips, .ed-stage {
+    scrollbar-width: thin;
+    scrollbar-color: var(--blue) transparent;
+  }
+}
+#pageChips::-webkit-scrollbar { height: 12px; }
+.ed-stage::-webkit-scrollbar { width: 12px; }
+/* A faint groove so the pill looks placed rather than floating in a gap. */
+#pageChips::-webkit-scrollbar-track,
+.ed-stage::-webkit-scrollbar-track { background: var(--scroll-track); border-radius: 999px; }
+/* The stepper arrows are what made the default bar look like a control. */
+#pageChips::-webkit-scrollbar-button,
+.ed-stage::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+#pageChips::-webkit-scrollbar-thumb,
+.ed-stage::-webkit-scrollbar-thumb {
+  /* Fully opaque accent. A translucent accent composited over the dark card into
+     a muddy olive slab, which is what this looked like before. */
+  background: var(--blue);
+  /* Transparent border + background-clip turns the full-height thumb into a
+     detached pill, which is the only reliable way to round a webkit thumb. */
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
+}
+#pageChips::-webkit-scrollbar-thumb { min-width: 40px; }
+.ed-stage::-webkit-scrollbar-thumb { min-height: 40px; }
+#pageChips:hover::-webkit-scrollbar-thumb,
+.ed-stage:hover::-webkit-scrollbar-thumb { background-color: var(--blue); background-clip: padding-box; }
+#pageChips::-webkit-scrollbar-thumb:hover,
+.ed-stage::-webkit-scrollbar-thumb:hover { background-color: var(--ink); background-clip: padding-box; }
+#pageChips::-webkit-scrollbar-corner,
+.ed-stage::-webkit-scrollbar-corner { background: transparent; }
+
+/* Page chip strip: one chip per page, scrolling sideways rather than wrapping,
+   so a 300-page document does not push a multi-line toolbar at everybody. */
+#pageChips {
+  display: flex; align-items: center; gap: 6px;
+  flex: 1 1 200px; min-width: 0; max-width: 100%;
+  flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain;
+  padding: 2px 0 4px; -webkit-overflow-scrolling: touch;
+}
+#pageChips .ed-page-btn { flex: 0 0 auto; }
+
+/* Zoom group: percentage readout plus the two steppers and a Fit button. */
+.ed-zoom { flex: 0 1 auto; }
+.ed-zoom .btn { min-width: 40px; text-align: center; }
+#zoomLevel {
+  min-width: 58px; padding: 6px 8px; border-radius: 8px;
+  background: var(--tint); color: var(--ink);
+  font-size: .84rem; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums;
+}
+
+/* Stage: the scroll container JS measures to work out the fit scale. The padding
+   is load-bearing (JS subtracts it from clientWidth) and the box-sizing keeps the
+   border and padding inside the width it reports. */
 .ed-stage {
-  min-width: 0; padding: 14px;
+  box-sizing: border-box; min-width: 0; padding: 14px;
   border: 1px solid var(--line); border-radius: 12px; background: var(--card);
   box-shadow: 0 14px 40px rgba(var(--shadow-color), .14);
-  overflow: auto; max-height: 78vh; overscroll-behavior: contain;
-  scrollbar-width: thin; -webkit-overflow-scrolling: touch;
+  overflow: auto; max-height: 78vh; max-height: 78dvh; overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
-.ed-canvas-wrap { position: relative; display: inline-block; max-width: 100%; margin: 0 auto; }
-.ed-canvas-wrap canvas { display: block; max-width: 100%; height: auto; border-radius: 3px; }
+/* The wrap must hug the canvas exactly. Any max-width here would size the
+   overlay (inset: 0) differently from the canvas and misplace every tap target. */
+.ed-canvas-wrap {
+  position: relative; display: inline-block; width: max-content; max-width: none; margin: 0 auto;
+}
+.ed-canvas-wrap canvas { display: block; max-width: none; border-radius: 3px; }
 
 /* Overlay: one transparent, clickable box per text item on the page. */
 .ed-overlay { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
@@ -1244,18 +1338,77 @@ body { font-size: 1rem; line-height: 1.7; }
   text-align: left; text-decoration: none; appearance: none;
   color: transparent; cursor: text; pointer-events: auto;
   outline: 1px dashed transparent; outline-offset: -1px;
-  transition: background .15s ease, outline-color .15s ease;
+  /* A tap should select text, never trigger a double-tap zoom or a flash of the
+     native tap highlight that makes the transparent box look broken. */
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  transition: background .18s ease, outline-color .18s ease,
+              box-shadow .18s ease, transform .18s ease, border-radius .18s ease;
+}
+/* A 9pt line is only ~15px tall at fit zoom on a phone, which is far below a
+   usable thumb target, so on touch screens the tappable area is grown by a
+   pseudo-element instead of resizing the box (the box geometry is what JS
+   positions, and touching it would break every overlay coordinate). 20px of
+   vertical bleed takes a one-line box from 15px to the ~44px minimum; the
+   horizontal bleed is smaller so neighbouring columns steal less of each other.
+   Overlap is inherent to the technique: the topmost box at a point wins, so a
+   focused box is lifted (see :focus-visible) to keep its own target usable. */
+@media (pointer: coarse) {
+  /* 9pt body copy is only ~5px tall on a phone, so the bleed is what makes it
+     tappable. It deliberately overlaps neighbouring lines: hitTestBox() in
+     edit-pdf.js resolves the nearest painted line, so a wide target no longer
+     means editing the wrong line. */
+  .ed-box::before { content: ""; position: absolute; inset: -20px -12px; }
 }
 .ed-box:hover { outline-color: color-mix(in srgb, var(--blue) 55%, transparent); }
-.ed-box:focus-visible { outline: 2px solid var(--blue); outline-offset: -1px; }
+.ed-box:focus-visible { outline: 2px solid var(--blue); outline-offset: -1px; z-index: 3; }
+/* Selection reads as a highlight, not a stamped box: a soft rounded fill, a
+   hairline ring, and a wide low-opacity halo that lifts the line off a white
+   PDF page without hiding a single glyph. The 1px lift is a nudge, not a
+   jump, and every animated property shares the .18s ease on .ed-box so
+   tapping a line feels immediate rather than springy. */
 .ed-box.is-selected {
-  background: color-mix(in srgb, var(--blue) 10%, transparent);
-  outline: 2px solid var(--blue); outline-offset: -1px;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--blue) 18%, transparent);
+  z-index: 2;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--blue) 17%, transparent);
+  outline: 1px solid color-mix(in srgb, var(--blue) 70%, transparent);
+  outline-offset: -1px;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--blue) 13%, transparent),
+    0 2px 10px color-mix(in srgb, var(--blue) 20%, transparent);
+  transform: translateY(-1px);
 }
-.ed-box.is-edited { background: var(--tint); color: var(--ink); }
-.ed-box.is-edited:hover { outline-color: var(--blue); }
-.ed-box.is-selected.is-edited { background: color-mix(in srgb, var(--blue) 12%, var(--tint)); }
+/* The overlay is a hit target only. The replacement text is painted onto the
+   canvas in its real font and colour, so anything drawn here on top of it
+   would misrepresent what actually gets saved. */
+.ed-box, .ed-box.is-edited, .ed-box.is-selected, .ed-box.is-selected.is-edited { color: transparent; }
+/* "Changed" is marked by a rule under the line. A filled block was the old answer
+   and read as a grey blob over the document; a corner dot was tried next but the
+   box is only as tall as the glyphs, so the dot landed on the last character and
+   looked like a rendering artifact. An underline cannot cover the text. */
+.ed-box.is-edited { box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--blue) 55%, transparent); }
+.ed-box.is-edited:hover { outline-color: color-mix(in srgb, var(--blue) 55%, transparent); }
+.ed-box.is-selected.is-edited {
+  background: color-mix(in srgb, var(--blue) 22%, transparent);
+  box-shadow:
+    inset 0 -2px 0 color-mix(in srgb, var(--blue) 70%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--blue) 13%, transparent),
+    0 2px 10px color-mix(in srgb, var(--blue) 20%, transparent);
+}
+
+/* Live preview, not yet applied: a dashed rule instead of the solid one, so the
+   page shows at a glance which text is committed and which is still being typed.
+   Drawn as a background image so the hit target's geometry never changes. */
+.ed-box.is-draft {
+  background-image: repeating-linear-gradient(to right, var(--blue) 0 4px, transparent 4px 8px);
+  background-repeat: no-repeat;
+  background-size: 100% 2px;
+  background-position: 0 100%;
+  box-shadow: none;
+}
+.ed-box.is-selected.is-draft {
+  background-color: color-mix(in srgb, var(--blue) 22%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 13%, transparent);
+}
 
 /* Control panel. */
 .ed-panel {
@@ -1264,9 +1417,22 @@ body { font-size: 1rem; line-height: 1.7; }
   background: var(--card);
 }
 .ed-panel-row { display: grid; gap: 6px; align-items: center; min-width: 0; }
+
+/* Selection strip: the original text of whatever is selected, or a hint. */
+.ed-selected {
+  display: grid; gap: 3px; min-width: 0;
+  padding: 9px 11px; border: 1px dashed var(--line); border-radius: 9px;
+  background: var(--card); color: var(--ink-soft); font-size: .84rem; line-height: 1.45;
+}
+.ed-selected strong {
+  color: var(--ink); font-weight: 600;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
+}
+.ed-selected .ed-selected-meta { font-size: .78rem; color: var(--ink-soft); }
+.ed-selected.is-empty { border-style: dashed; }
+
 .ed-field { color: var(--ink-soft); font-size: .84rem; font-weight: 600; }
 .ed-field > label { line-height: 1.4; }
-.ed-field h3 { color: var(--ink); font-size: .95rem; font-weight: 600; }
 .ed-field .name-input { width: 100%; min-width: 0; }
 .ed-field textarea.name-input { resize: vertical; min-height: 82px; line-height: 1.5; }
 .ed-field select.name-input { padding: 8px 10px; }
@@ -1275,24 +1441,29 @@ body { font-size: 1rem; line-height: 1.7; }
   border: 1px solid var(--line); border-radius: 8px; background: var(--card); cursor: pointer;
 }
 .ed-field input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--blue); }
-.ed-field:has(input[type="checkbox"]) { grid-auto-flow: column; grid-auto-columns: max-content; justify-content: start; align-items: center; gap: 8px 16px; }
+/* Flex with wrap, not a column grid: four max-content tracks plus three 16px gaps
+   needed ~155px and overflowed the panel on a 320px phone (and worse at 280px).
+   Wrapping lets the row drop to a second line instead of spilling out of the card. */
+.ed-field:has(input[type="checkbox"]) { display: flex; flex-wrap: wrap; justify-content: flex-start; align-items: center; gap: 8px 16px; }
+.ed-field:has(input[type="checkbox"]) > * { flex: 0 0 auto; }
 .ed-field .btn { margin-top: 0; width: 100%; }
 
-/* Scrollable list of the current page's text items. */
-.ed-list {
-  display: grid; gap: 2px; max-height: 210px; overflow-y: auto;
-  overscroll-behavior: contain; scrollbar-width: thin;
-  border: 1px solid var(--line); border-radius: 8px; padding: 4px; background: var(--card);
+/* Desktop panel layout. Removing the per-page text list left a single column of
+   full-width rows in a 300px column, which read as a tall strip of half-empty
+   boxes. Family and size are short enough to share a line, so the panel pairs
+   them and the remaining rows span the full width instead.
+   The selector is positional because these rows have no ids of their own -
+   .ed-selected, textarea, family, size, colour, bold/italic, apply. Adding or
+   removing a row here means re-checking the indices in this rule and in the
+   narrow-screen block further down. */
+@media (min-width: 861px) {
+  .ed-panel { grid-template-columns: 1fr 1fr; gap: 10px 12px; padding: 13px; }
+  .ed-panel > .ed-selected,
+  .ed-panel > .ed-field:nth-child(2),
+  .ed-panel > .ed-field:nth-child(5),
+  .ed-panel > .ed-field:nth-child(6),
+  .ed-panel > .ed-field:nth-child(7) { grid-column: 1 / -1; }
 }
-.ed-item {
-  display: block; width: 100%; text-align: left; cursor: pointer;
-  padding: 7px 9px; border: 0; border-radius: 6px; background: transparent;
-  color: var(--ink); font-family: var(--font-body); font-size: .84rem; line-height: 1.4;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  transition: background .15s ease, color .15s ease;
-}
-.ed-item:hover { background: var(--tint); }
-.ed-item.is-active { background: var(--blue); color: var(--button-text); font-weight: 600; }
 
 /* Save row + the honest limitation note. */
 .ed-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
@@ -1302,19 +1473,169 @@ body { font-size: 1rem; line-height: 1.7; }
   background: var(--card); color: var(--ink-soft); font-size: .84rem; line-height: 1.6;
 }
 
-@media (max-width: 860px) {
-  #editorGrid:not(.ws-grid) { grid-template-columns: minmax(0, 1fr); }
-  .ed-stage { max-height: 62vh; }
-  .ed-toolbar { flex-direction: column; align-items: stretch; text-align: center; }
-  .ed-pagenav { justify-content: center; }
+/* Keep-or-discard card, shown before anything is written or thrown away. It is
+   a plain in-flow card rather than a fixed overlay: the page is short enough
+   that a modal scrim would only add motion the user did not ask for. */
+.ed-confirm {
+  display: grid; gap: 11px;
+  margin-top: 12px; padding: 13px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+  box-shadow: 0 14px 40px rgba(var(--shadow-color), .14);
+  animation: ed-confirm-in .18s ease both;
+}
+/* The card sets display, which outranks the user-agent [hidden] rule, so the
+   hidden state has to be restored explicitly. */
+.ed-confirm[hidden] { display: none; }
+@keyframes ed-confirm-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+/* The card itself takes focus when it opens, which :focus-visible does not
+   cover for a programmatically focused container. */
+.ed-confirm:focus { outline: 2px solid var(--blue); outline-offset: 2px; }
+/* The summary is the dialog's accessible name, so it is the one line that
+   carries real weight - but it must never wrap into an unreadable block. */
+#confirmSummary, .ed-confirm-text {
+  margin: 0; min-width: 0;
+  color: var(--ink); font-size: .9rem; font-weight: 600; line-height: 1.45;
+}
+.ed-confirm-actions {
+  display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 9px;
+}
+/* .btn-primary/.btn-done carry an 18px top margin for their stand-alone use on
+   a tool page; inside the card every button is in a row, so that has to go. */
+.ed-confirm .btn { margin-top: 0; }
+#confirmKeep { order: -1; }
+#confirmCancel { border-color: var(--line); background: var(--card); color: var(--ink); }
+/* Discard is the only destructive choice on the card. It reuses the --red the
+   file-strip menu already uses for its own delete action rather than
+   introducing a second danger colour, and is keyed on the id as well as the
+   class so the look survives either. */
+#confirmDiscard, .ed-confirm .danger {
+  border-color: color-mix(in srgb, var(--red) 40%, var(--line));
+  background: color-mix(in srgb, var(--red) 8%, var(--card));
+  color: var(--red);
+}
+#confirmDiscard:hover, .ed-confirm .danger:hover {
+  border-color: var(--red);
+  background: color-mix(in srgb, var(--red) 16%, var(--card));
+  color: var(--red);
+}
+
+/* Touch-sized controls: a 30px toolbar button is unusable with a thumb. Widths
+   stay on shrink rather than growing, so a long label wraps inside its button
+   instead of pushing the toolbar past a 360px screen. */
+@media (pointer: coarse) {
+  .ed-toolbar .btn, .ed-actions .btn { min-height: 44px; }
+  .ed-toolbar-group { max-width: 100%; }
+  .ed-toolbar .btn { min-width: 0; padding-inline: 12px; }
+  .ed-zoom .btn { min-width: 46px; }
+  #zoomLevel { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+  .ed-confirm .btn { min-height: 44px; }
+  .ed-field input[type="color"] { height: 44px; }
+  .ed-field .name-input, .ed-field .btn { min-height: 44px; }
+  .ed-field input[type="checkbox"] { width: 22px; height: 22px; }
+}
+
+/* Single-column workspace. The toolbar becomes a stack of three rows (page nav,
+   zoom, actions) instead of one control per row, and the panel becomes a
+   two-column field grid so the controls above the page preview stay short. */
+@media (max-width: 860px) {  #editorGrid:not(.ws-grid) { grid-template-columns: minmax(0, 1fr); }
+  .ed-stage { max-height: 62vh; max-height: 62dvh; }
+
+  .ed-toolbar {
+    flex-direction: column; align-items: stretch; text-align: center;
+    gap: 8px; margin-top: 14px; padding: 10px; max-width: 100%;
+  }
+  .ed-toolbar-group { justify-content: center; gap: 8px; }
+  /* #pageChips is nested inside the page-nav group, so making the group a grid
+     is what keeps the strip on its own line while the buttons share one. */
+  .ed-pagenav { display: grid; grid-template-columns: auto 1fr auto; align-items: center; }
+  #pageCounter { justify-self: center; }
+  #pageChips { grid-column: 1 / -1; justify-self: stretch; width: 100%; flex: none; }
   .ed-actions .btn { flex: 1 1 auto; }
+
+  /* Panel: family/size share a column, colour/style share the next one, and the
+     wide rows (selection strip, textarea, apply button) span both.
+     Selector is positional because the panel rows have no ids of their own -
+     .ed-selected, then textarea, family, size, colour, bold/italic, apply. */
+  .ed-panel { grid-template-columns: 1fr 1fr; gap: 7px; padding: 11px; }
+  .ed-panel > .ed-selected,
+  .ed-panel > .ed-field:nth-child(2),
+  .ed-panel > .ed-field:nth-child(7) { grid-column: 1 / -1; }
+  .ed-selected { padding: 8px 10px; }
+  .ed-selected strong { -webkit-line-clamp: 2; }
+  /* rows=4 gives a ~120px textarea that dominates a phone panel; an explicit
+     height wins over the attribute and resize: vertical still lets a user grow it. */
+  .ed-field textarea.name-input { height: 56px; min-height: 56px; }
+  .ed-confirm { padding: 11px; gap: 8px; }
 }
 @media (max-width: 540px) {
   .ed-stage, .ed-panel { padding: 10px; }
-  .ed-stage { max-height: 55vh; }
-  .ed-list { max-height: 170px; }
+  .ed-stage { max-height: 55vh; max-height: 55dvh; }
+  .ed-toolbar { padding: 9px 9px; gap: 7px; }
+  .ed-toolbar-group { gap: 7px; }
+  .ed-toolbar-group:last-child .btn { flex: 1 1 40%; font-size: .82rem; line-height: 1.25; }
+  .ed-panel { gap: 6px; }
+  .ed-field { font-size: .78rem; }
+  .ed-field > label { line-height: 1.3; }
   .ed-actions { display: grid; grid-template-columns: 1fr; }
+  /* On the narrowest phones three buttons in a row get too tight to hit, so
+     they stack full width instead of shrinking into slivers. */
+  .ed-confirm-actions { display: grid; grid-template-columns: 1fr; }
+  .ed-confirm-actions .btn { width: 100%; }
+  #zoomLevel { min-width: 50px; }
 }
+@media (max-width: 380px) {
+  .ed-toolbar-group { width: 100%; }
+  .ed-toolbar-group .btn { flex: 1 1 auto; }
+}
+/* Landscape phones and short windows: without a cap the panel alone can be
+   taller than the screen, so let it scroll inside itself instead. */
+@media (max-width: 860px) and (max-height: 560px) {
+  .ed-panel { max-height: 82vh; max-height: 82dvh; overflow-y: auto; overscroll-behavior: contain; }
+}
+
+/* Very narrow phones (280-340px: SE, Fold cover screen). The two page-level
+   actions shared a row, which left each label wrapping over three lines, so give
+   that group its own column. Only this group: the page-nav and zoom buttons are
+   compact controls that must stay side by side. Labels wrap to at most two lines
+   at full width, so no white-space override is needed here. */
+@media (max-width: 360px) {
+  .ed-toolbar { gap: 8px; padding: 10px; }
+  .ed-toolbar-group:has(#revertPageBtn) { flex-direction: column; align-items: stretch; }
+  .ed-toolbar-group:has(#revertPageBtn) .btn { width: 100%; }
+  #pageCounter { width: 58px; }
+  .ed-actions { gap: 8px; }
+}
+
+/* Wide screens: space-between stretched the three toolbar groups apart across
+   the full width, which left the zoom controls floating in the middle and the
+   page chips orphaned on their own row. Pack the groups left with even gaps and
+   let the nav row hold the chips. */
+@media (min-width: 1100px) {
+  .ed-toolbar { justify-content: flex-start; gap: 10px 22px; }
+  .ed-pagenav { flex-wrap: nowrap; flex: 1 1 auto; }
+  .ed-zoom { flex: 0 0 auto; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .ed-box, .ed-item { transition: none; }
+  /* The selection highlight and the confirm card are decoration around a
+     decision the user makes, so neither needs to move. States still change,
+     they just change instantly. */
+  .ed-box { transition: none; }
+  .ed-box.is-selected { transform: none; }
+  .ed-confirm { animation: none; }
+}
+
+/* ---------- Phone-only page header reduction ----------
+   The intro block is the tallest thing above the tool on a phone, and on the
+   text editor it pushes the page preview clean off the screen. Scoped to the
+   text editor page (the only one that loads a tall interactive workspace);
+   every other tool page keeps its full intro copy. */
+@media (max-width: 540px) {
+  body:has(#edStage) .page-head { padding-top: 24px; padding-bottom: 14px; }
+  body:has(#edStage) .page-head .back { margin-bottom: 10px; }
+  body:has(#edStage) .page-head h1 { font-size: clamp(1.6rem, 7.6vw, 2.05rem); }
+  body:has(#edStage) .page-head p {
+    margin-top: 8px; font-size: .86rem; line-height: 1.55; max-width: 44ch;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
+  }
 }

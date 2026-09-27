@@ -23,30 +23,40 @@
   <main>
     <div class="page-head container"><a class="back" href="index.html">&larr; All tools</a><h1>Edit PDF Text</h1><p>Open a PDF, click any text on the page, and replace it in place &mdash; keeping the original font family, size, and position as closely as the PDF format allows. Everything runs in your browser, so your file stays on your device.</p></div>
     <div class="container organizer-container">
-      <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Choose a PDF or drop it here"><h3>Select a PDF</h3><p>or drag &amp; drop it here</p><button class="btn btn-primary" type="button" onclick="event.stopPropagation(); fileInput.click()">Choose PDF</button><input id="fileInput" type="file" accept="application/pdf,.pdf" hidden /></div>
+      <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Choose a PDF or drop it here"><h3>Select a PDF</h3><p>or drag &amp; drop it here</p><button class="btn btn-primary" id="choosePdfBtn" type="button">Choose PDF</button><input id="fileInput" type="file" accept="application/pdf,.pdf" hidden /></div>
       <div id="fileStrip"></div>
 
       <div id="editorShell" class="ed-shell" hidden>
         <div class="ed-toolbar">
-          <div class="ed-toolbar-group ed-pagenav">
+          <div class="ed-toolbar-group ed-pagenav" role="group" aria-label="Page navigation">
             <button class="btn btn-ghost ed-page-btn" id="pagePrev" type="button" aria-label="Previous page" aria-pressed="false">&#8592; Prev</button>
-            <span id="pageCounter">Page 1 of 1</span>
+            <!-- Visible copy is a tight "1 / 1" badge; the full sentence lives in aria-label so screen readers still hear it. -->
+            <span id="pageCounter" role="status" aria-live="polite" aria-label="Page 1 of 1">1 / 1</span>
             <button class="btn btn-ghost ed-page-btn" id="pageNext" type="button" aria-label="Next page" aria-pressed="false">Next &#8594;</button>
+            <div class="ed-page-chips" id="pageChips" role="group" aria-label="Jump to a page"></div>
+          </div>
+          <div class="ed-toolbar-group ed-zoom" role="group" aria-label="Zoom">
+            <button class="btn btn-ghost ed-page-btn" id="zoomOut" type="button" aria-label="Zoom out">&minus;</button>
+            <span id="zoomLevel" aria-live="polite">100%</span>
+            <button class="btn btn-ghost ed-page-btn" id="zoomIn" type="button" aria-label="Zoom in">+</button>
+            <button class="btn btn-ghost ed-page-btn" id="zoomFit" type="button">Fit</button>
           </div>
           <div class="ed-toolbar-group">
             <button class="btn btn-ghost" id="revertPageBtn" type="button">Undo edits on this page</button>
+            <button class="btn btn-ghost" id="discardAllBtn" type="button">Discard all edits</button>
           </div>
         </div>
 
         <div class="ed-grid" id="editorGrid">
-          <div class="ed-stage">
+          <div class="ed-stage" id="edStage" role="region" tabindex="0" aria-label="Page preview, scroll to see the whole page">
             <div class="ed-canvas-wrap" id="pageCanvasWrap">
-              <canvas id="pageCanvas" width="1" height="1"></canvas>
+              <canvas id="pageCanvas" width="1" height="1" role="img" aria-label="The current PDF page"></canvas>
               <div class="ed-overlay" id="pageOverlay"></div>
             </div>
           </div>
 
           <div class="ed-panel">
+            <div class="ed-selected" id="edSelection" role="status" aria-live="polite">Nothing selected yet. Tap a piece of text on the page to replace it.</div>
             <div class="ed-panel-row ed-field">
               <label for="textInput">Replacement text</label>
               <textarea class="name-input" id="textInput" rows="4" placeholder="Click a text box on the page, then type here."></textarea>
@@ -74,15 +84,21 @@
             <div class="ed-panel-row ed-field">
               <button class="btn btn-done" id="applyBtn" type="button">Apply to selection</button>
             </div>
-            <div class="ed-panel-row ed-field">
-              <h3>Text on this page</h3>
-              <div class="ed-list" id="textList"></div>
-            </div>
           </div>
         </div>
 
         <div class="ed-actions">
           <button class="btn btn-done" id="saveBtn" type="button">Save edited PDF</button>
+        </div>
+
+        <!-- Save/discard decision. Hidden until asked for, so it never sits in the way while editing. -->
+        <div class="ed-confirm" id="edConfirm" role="dialog" aria-modal="true" aria-labelledby="confirmSummary" hidden>
+          <p class="ed-confirm-text" id="confirmSummary">No edits yet</p>
+          <div class="ed-confirm-actions">
+            <button class="btn btn-done" id="confirmKeep" type="button">Keep changes</button>
+            <button class="btn btn-ghost danger" id="confirmDiscard" type="button">Discard</button>
+            <button class="btn btn-ghost" id="confirmCancel" type="button">Cancel</button>
+          </div>
         </div>
 
         <p class="ed-legend">A PDF cannot reflow text, so each replacement is painted over the original glyphs in the same spot. Keep new text close in length to the old text, or it may overlap the surrounding layout. Scans, outlined text, and PDFs using fonts we cannot match fall back to a standard Helvetica-style face, so the result is close rather than identical.</p>
