@@ -6,6 +6,31 @@ const toolbar = document.getElementById("toolbar");
 const convertBtn = document.getElementById("convertBtn");
 const clearBtn = document.getElementById("clearBtn");
 
+const compressToggle = document.getElementById("compressToggle");
+const compressQuality = document.getElementById("compressQuality");
+
+// Same scale/JPEG levels the standalone compress tool uses, so a file compressed
+// here comes out the same as one compressed there.
+const COMPRESS_QUALITY = {
+  small: { scale: 1.2, jpeg: 0.5, label: "Smallest" },
+  medium: { scale: 1.6, jpeg: 0.68, label: "Balanced" },
+  high: { scale: 2.0, jpeg: 0.85, label: "Best quality" },
+};
+let compressLevel = "medium";
+
+if (compressToggle && compressQuality) {
+  compressToggle.addEventListener("change", () => {
+    compressQuality.hidden = !compressToggle.checked;
+  });
+  compressQuality.querySelectorAll(".pill").forEach((pill) => {
+    pill.addEventListener("click", () => {
+      compressQuality.querySelectorAll(".pill").forEach((p) => p.classList.remove("selected"));
+      pill.classList.add("selected");
+      compressLevel = pill.dataset.q;
+    });
+  });
+}
+
 const strip = createFileStrip({ input: fileInput, stripEl, accept: "pdf", toolbar });
 wireDropzone(dropzone, fileInput, (f) => strip.addFiles(f));
 wireStartAnother(fileInput, () => strip.clear());
@@ -25,12 +50,16 @@ convertBtn.addEventListener("click", async () => {
   convertBtn.disabled = true;
   hideResultBar();
   setStatus("Merging…");
+  // Declared out here on purpose: a let inside the try block is not in scope in
+  // the catch, so the error handler could not name the file that failed.
+  let currentName = items[0] && items[0].file.name;
 
   try {
     const pdfLib = await loadPdfLib();
     const merged = await pdfLib.PDFDocument.create();
     const flattenedFiles = [];
     for (const item of items) {
+      currentName = item.file.name;
       const bytes = await item.file.arrayBuffer();
       try {
         // Do not bypass encryption checks here: pdf-lib can copy encrypted streams without decrypting them.
@@ -46,17 +75,41 @@ convertBtn.addEventListener("click", async () => {
       }
       setStatus("Merging… added " + item.file.name);
     }
-    const out = await merged.save();
-    const blob = new Blob([out], { type: "application/pdf" });
+    const mergedBytes = await merged.save();
+    const inputSize = items.reduce((total, it) => total + it.file.size, 0);
+    let bytes = mergedBytes;
+    let compressed = false;
+    let note = "";
+    if (compressToggle && compressToggle.checked) {
+      setStatus("Compressing the merged PDF…");
+      const q = COMPRESS_QUALITY[compressLevel] || COMPRESS_QUALITY.medium;
+      bytes = await compressPdfBytes(mergedBytes, pdfLib, q, merged.getPageCount());
+      compressed = true;
+      const saved = Math.max(0, mergedBytes.length - bytes.length);
+      note = saved > 0
+        ? ` Compressed at ${q.label} quality — ${formatSize(mergedBytes.length)} → ${formatSize(bytes.length)}, saving ${formatSize(saved)}.`
+        : ` Compressed at ${q.label} quality, but the file was already lean, so it is about the same size.`;
+    }
+    const blob = new Blob([bytes], { type: "application/pdf" });
     showResult(blob, "merged.pdf");
-    if (flattenedFiles.length) {
+    const resultText = document.querySelector(".result-text");
+    if (compressed && flattenedFiles.length) {
+      resultText.textContent = `Merged and compressed. ${flattenedFiles.length === 1 ? flattenedFiles[0] : `${flattenedFiles.length} PDFs`} needed a compatibility fallback, so those pages were rendered as images.${note}`;
+      setStatus("Merged and compressed. Some pages were rendered for compatibility.", "success");
+    } else if (compressed) {
+      resultText.textContent = `Merged and compressed.${note}`;
+      setStatus(`Merged ${items.length} PDF${items.length === 1 ? "" : "s"} and compressed.${note}`, "success");
+    } else if (flattenedFiles.length) {
       const details = flattenedFiles.length === 1 ? flattenedFiles[0] : `${flattenedFiles.length} PDFs`;
-      document.querySelector(".result-text").textContent = `Merged successfully. ${details} needed a compatibility fallback, so those pages may not keep selectable text.`;
+      resultText.textContent = `Merged ${inputSize > 0 ? `${items.length} PDFs, ` : ""}${formatSize(bytes.length)}. ${details} needed a compatibility fallback, so those pages may not keep selectable text.`;
       setStatus("Merged successfully. Some pages were rendered for compatibility.", "success");
+    } else {
+      resultText.textContent = `Merged ${items.length} PDF${items.length === 1 ? "" : "s"} — ${formatSize(bytes.length)}.`;
+      setStatus(`Merged ${items.length} PDF${items.length === 1 ? "" : "s"}.`, "success");
     }
   } catch (err) {
     console.error(err);
-    setStatus(explainProcessingError(err, "Merging these PDFs", items[0] && items[0].file.name), "error");
+    setStatus(explainProcessingError(err, "Merging these PDFs", currentName), "error");
   } finally {
     convertBtn.disabled = false;
     setToolBusy(false);
@@ -123,6 +176,44 @@ async function appendRenderedPdf(target, bytes, pdfLib, filename) {
     await doc.destroy();
   }
 }
+// Re-renders every page of the merged document as a JPEG and rebuilds it, which
+// is the only way to make a PDF meaningfully smaller in the browser. Pages are
+// embedded one at a time and the canvas is released straight after, so memory
+// stays flat instead of holding every rendered page at once.
+async function compressPdfBytes(mergedBytes, pdfLib, q, totalPages) {
+  const pdfjs = await loadPdfJs();
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(mergedBytes.slice(0)) }).promise;
+  const out = await pdfLib.PDFDocument.create();
+  try {
+    for (let pageNo = 1; pageNo <= doc.numPages; pageNo++) {
+      const page = await doc.getPage(pageNo);
+      const pageSize = page.getViewport({ scale: 1 });
+      const viewport = page.getViewport({ scale: q.scale });
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      try {
+        await page.render({ canvasContext: canvas.getContext("2d", { alpha: false }), viewport }).promise;
+        const jpeg = await new Promise((resolve, reject) => {
+          canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Could not render a page."))), "image/jpeg", q.jpeg);
+        });
+        const image = await out.embedJpg(await jpeg.arrayBuffer());
+        // Keep the original page size so the merged layout does not change.
+        const outPage = out.addPage([pageSize.width, pageSize.height]);
+        outPage.drawImage(image, { x: 0, y: 0, width: pageSize.width, height: pageSize.height });
+      } finally {
+        page.cleanup();
+        canvas.width = 0;
+        canvas.height = 0;
+      }
+      setStatus(`Compressing — page ${pageNo} of ${totalPages || doc.numPages}…`);
+    }
+  } finally {
+    await doc.destroy();
+  }
+  return out.save();
+}
+
 // workspace (edit files)
 const wsBtn = document.getElementById("wsBtn");
 wsBtn.addEventListener("click", () => openWorkspace(strip));

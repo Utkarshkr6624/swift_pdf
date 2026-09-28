@@ -108,6 +108,18 @@
           <button class="btn btn-ghost" id="clearBtn" type="button">Clear all</button>
           <button class="btn btn-done" id="convertBtn" type="button">Merge PDFs</button>
         </div>
+        <div class="merge-compress" id="mergeCompress">
+          <label class="merge-compress-toggle" for="compressToggle">
+            <input type="checkbox" id="compressToggle" />
+            <span>Also compress the merged PDF</span>
+          </label>
+          <div class="pills merge-compress-quality" id="compressQuality" hidden>
+            <button class="pill" data-q="small" type="button">Smallest</button>
+            <button class="pill selected" data-q="medium" type="button">Balanced</button>
+            <button class="pill" data-q="high" type="button">Best quality</button>
+          </div>
+          <p class="merge-compress-note">Compressing re-renders every page as an image to shrink the file. The result looks the same, but the text is no longer selectable or searchable.</p>
+        </div>
       </div>
       <div class="result-bar" id="resultBar" hidden>
         <span class="result-text">Your merged PDF is ready to download.</span>
@@ -129,7 +141,7 @@
     <div class="workspace">
       <div class="ws-head">
         <h3 id="wsTitle">Edit files</h3>
-        <span class="ws-meta"><span id="wsCount"></span> &middot; drag to reorder</span>
+        <span class="ws-meta"><span id="wsCount"></span> &middot; drag to reorder, or focus a file and use the arrow keys</span>
         <div class="ws-head-actions">
           <button class="btn btn-primary" id="wsDoneBtn" type="button">Done</button>
         </div>

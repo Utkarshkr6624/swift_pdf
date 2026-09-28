@@ -100,7 +100,7 @@ a { color: inherit; text-decoration: none; }
   transition: color 0.15s, border-color 0.15s;
   flex-shrink: 0;
 }
-.theme-toggle:hover { color: var(--ink); border-color: #c9cfdd; }
+.theme-toggle:hover { color: var(--ink); border-color: var(--line-strong); }
 .theme-toggle .icon-sun { display: none; }
 .theme-toggle .icon-moon { display: block; }
 [data-theme="dark"] .theme-toggle .icon-sun { display: block; }
@@ -166,7 +166,7 @@ a { color: inherit; text-decoration: none; }
   background: var(--card); color: var(--ink-soft);
   border: 1px solid var(--line); padding: 10px 18px; font-size: 0.9rem;
 }
-.btn-ghost:hover { color: var(--ink); border-color: #c9cfdd; }
+.btn-ghost:hover { color: var(--ink); border-color: var(--line-strong); }
 
 /* ---------- Horizontal file strip ---------- */
 .file-strip-wrap { position: relative; margin-top: 16px; max-width: 100%; min-width: 0; overflow: hidden; }
@@ -185,6 +185,12 @@ a { color: inherit; text-decoration: none; }
 .chip {
   position: relative; flex: 0 0 auto;
   width: 124px;
+  /* A chip is a drag handle. Without this the browser claims a finger drag on a
+     horizontally scrollable strip as a scroll and fires pointercancel, which
+     silently kills the reorder on every touch device. Scrolling the strip stays
+     available: the same gesture auto-scrolls when a chip nears either edge, and
+     the arrow buttons either side of the strip still work. Matches .page-card. */
+  touch-action: none;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -194,6 +200,15 @@ a { color: inherit; text-decoration: none; }
   transition: box-shadow 0.15s, transform 0.15s;
 }
 .chip:hover { box-shadow: 0 6px 16px rgba(var(--shadow-color), 0.1); transform: translateY(-2px); }
+/* While a chip is being dragged the pointer holds still and the other chips slide
+   underneath it, so each one crossing the pointer would pick up :hover and ease
+   2px upwards on its 0.15s transition. That reads as the whole strip vibrating.
+   Hold the cards still for the duration of the gesture. */
+.file-strip:has(.chip.touch-dragging) .chip { transition: none !important; }
+.file-strip:has(.chip.touch-dragging) .chip:hover {
+  transform: none;
+  box-shadow: 0 1px 3px rgba(var(--shadow-color), 0.05);
+}
 .chip.chip-in { animation: chip-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .chip.chip-out { animation: chip-out 0.22s ease-in both; pointer-events: none; }
 
@@ -256,7 +271,7 @@ a { color: inherit; text-decoration: none; }
   white-space: nowrap;
 }
 .menu button:hover { background: var(--tint); }
-.menu button:disabled { color: #b6bcc8; cursor: default; }
+.menu button:disabled { color: var(--ink-soft); opacity: .55; cursor: default; }
 .menu button:disabled:hover { background: none; }
 .menu button.danger { color: var(--red); }
 
@@ -274,7 +289,6 @@ a { color: inherit; text-decoration: none; }
 
 .file-strip { scrollbar-width: none; }
 .file-strip::-webkit-scrollbar { display: none; }
-.chip.dragging { opacity: 0.45; }
 
 /* ---------- Workspace ---------- */
 .workspace {
@@ -307,11 +321,42 @@ a { color: inherit; text-decoration: none; }
   padding: 8px; cursor: grab;
   transition: box-shadow 0.15s, transform 0.15s, border-color 0.15s;
 }
+/* A finger drag on a card is the reorder gesture, so the card must not hand the
+   same touch to the scroller: at the default touch-action the browser reads the
+   same movement as a page scroll, cancels the pointer, and the reorder silently
+   dies half way through. The tradeoff is real - .ws-body can then no longer be
+   scrolled by swiping on a card, only from the gutters and padding around them -
+   so the mobile grid gap further down this file is kept wide enough to swipe from.
+   Scoped off .organizer-editor-cell: organize-pdf keeps its own native drag and
+   relies on touch scrolling inside its cells. */
+.ws-cell:not(.organizer-editor-cell) { touch-action: none; }
 .ws-cell:hover { border-color: var(--blue); box-shadow: 0 8px 20px rgba(var(--shadow-color), 0.12); transform: translateY(-2px); }
 .ws-cell.ws-dragging, .ws-cell.ws-dragging:hover { opacity: 0.5; cursor: grabbing; transform: none; transition: none; }
 .chip.touch-dragging, .ws-cell.touch-dragging, .page-card.touch-dragging { position: relative; z-index: 3; opacity: .68; cursor: grabbing; outline: 2px dashed var(--blue); outline-offset: 2px; transform: scale(.98); }
 .ws-grid:has(.ws-dragging) .ws-cell:not(.ws-dragging) { transition: none; }
-.ws-cell img { width: 100%; height: 110px; object-fit: cover; border-radius: 9px; display: block; background: var(--tint); }
+/* The workspace reorders through the pointer, so .touch-dragging is the only drag
+   state it ever gets now. It has to out-rank the hover lift, stop neighbours from
+   sliding under the pointer while they are swept past, and hold "grabbing" for the
+   whole gesture instead of snapping back to "grab" between two cards. */
+.ws-cell:not(.organizer-editor-cell).touch-dragging,
+.ws-cell:not(.organizer-editor-cell).touch-dragging:hover {
+  cursor: grabbing; transform: none; transition: none;
+  border-color: var(--blue); box-shadow: 0 18px 38px rgba(var(--shadow-color), 0.28);
+}
+.ws-grid:has(> .ws-cell.touch-dragging:not(.organizer-editor-cell)) .ws-cell:not(.organizer-editor-cell) { cursor: grabbing; transition: none !important; }
+/* Same reason as the file strip: the pointer holds still while the cards slide
+   under it, so without this every card crossing the pointer eases 2px up on
+   its :hover transform and the grid appears to vibrate. */
+.ws-grid:has(> .ws-cell.touch-dragging:not(.organizer-editor-cell)) .ws-cell:not(.organizer-editor-cell):hover { transform: none; box-shadow: none; }
+/* A text selection growing under a moving card reads as a glitch and fights the
+   drag. Scoped to the gesture: the filename is still selectable at rest. */
+.ws-grid:has(> .ws-cell.touch-dragging:not(.organizer-editor-cell)) { user-select: none; -webkit-user-select: none; }
+.ws-cell img {
+  width: 100%; height: 110px; object-fit: cover; border-radius: 9px; display: block; background: var(--tint);
+  /* Without this the browser starts a native image drag on a press over the
+     thumbnail, which cancels the pointer gesture and the card never reorders. */
+  -webkit-user-drag: none; user-drag: none; pointer-events: none;
+}
 .ws-filename {
   display: -webkit-box;
   min-width: 0;
@@ -512,6 +557,34 @@ a { color: inherit; text-decoration: none; }
 .organizer-actions .btn { margin: 0; }
 .organizer-actions button:disabled, .number-options button:disabled { opacity: .45; cursor: not-allowed; }
 .number-options { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; margin-top: 18px; padding: 18px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; }
+
+/* ---------- Merge: optional compression of the merged file ----------
+   Scoped to .merge-compress, which only exists on the merge page, so nothing
+   here can reach the standalone compress tool or any other page. */
+.merge-compress {
+  flex: 1 1 100%;
+  display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap;
+  padding-top: 12px; border-top: 1px solid var(--line);
+}
+.merge-compress-toggle {
+  display: inline-flex; align-items: center; gap: 9px; cursor: pointer;
+  color: var(--ink); font-size: .9rem; font-weight: 500;
+}
+.merge-compress-toggle input { width: 20px; height: 20px; margin: 0; accent-color: var(--blue); }
+/* The label is what people actually tap, so give it room to be hit. */
+@media (pointer: coarse) {
+  .merge-compress-toggle { min-height: 44px; padding: 0 4px; }
+  .merge-compress-toggle input { width: 22px; height: 22px; }
+  .merge-compress-quality .pill { min-height: 44px; display: inline-flex; align-items: center; }
+}
+.merge-compress-quality { margin-top: 0; }
+/* .pills sets display:flex, which outranks the UA [hidden] rule, so the
+   quality levels need this or they never actually hide. */
+.merge-compress-quality[hidden] { display: none; }
+.merge-compress-note {
+  flex: 1 1 100%;
+  color: var(--ink-soft); font-size: .82rem; line-height: 1.55; margin: 0;
+}
 .number-options label { display: grid; gap: 6px; color: var(--ink-soft); font-size: .82rem; font-weight: 600; }
 .number-options .name-input { margin: 0; }
 .number-options select.name-input { height: 42px; }
@@ -679,8 +752,6 @@ a { color: inherit; text-decoration: none; }
   box-shadow: 0 10px 28px rgba(47, 107, 255, 0.12);
   transform: translateY(-2px);
 }
-.tool-row.soon { opacity: 0.55; cursor: default; }
-.tool-row.soon:hover { border-color: var(--line); box-shadow: 0 1px 2px rgba(var(--shadow-color), 0.04); transform: none; }
 
 .tool-glyph {
   display: flex; align-items: center; justify-content: center;
@@ -690,8 +761,6 @@ a { color: inherit; text-decoration: none; }
 }
 .tool-row h3 { font-size: 1.05rem; display: flex; align-items: center; gap: 8px; }
 .tool-row p { font-size: 0.88rem; color: var(--ink-soft); margin-top: 4px; }
-
-.soon-tag { font-size: 0.66rem; font-weight: 600; letter-spacing: 0.02em; color: var(--blue-dark); background: var(--tint); padding: 2px 8px; border-radius: 99px; }
 
 /* ---------- FAQ ---------- */
 .faq-section { padding: 0 0 104px; }
@@ -768,9 +837,8 @@ footer a:hover { color: var(--blue); }
   font-family: var(--font-body); color: var(--ink-soft);
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-.pill:hover { border-color: #c9cfdd; }
+.pill:hover { border-color: var(--line-strong); }
 .pill.selected { background: var(--blue); border-color: var(--blue); color: #fff; }
-
 
 /* ---------- Responsive ---------- */
 @media (max-width: 640px) {
@@ -786,7 +854,10 @@ footer a:hover { color: var(--blue); }
   footer .footer-inner span:last-child { justify-content: center; }
   .tool-list { grid-template-columns: 1fr; }
   .toolbar { flex-direction: column; align-items: stretch; text-align: center; }
-  .ws-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
+  /* The cards own the touch gesture, so a scroll has to start in the gutter.
+     Keep this >= 14px: it is the strip between two cards that the user swipes,
+     and shrinking it re-introduces the cancellation described on .ws-cell. */
+  .ws-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 14px; }
   #editorGrid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
   .ws-cell { padding: 6px; }
   .ws-actions { opacity: 1; }
@@ -851,6 +922,9 @@ footer a:hover { color: var(--blue); }
   --blue-dark: #2854b6;
   --tint: #e9f0fc;
   --line: #d8e2f0;
+  /* The hover border on quiet controls. Kept a step above --line so it
+     still reads as a lift, not as a second, competing edge. */
+  --line-strong: #c9cfdd;
   --nav-bg: #f4f7fc;
   --ok-bg: #edf6f0;
   --ok-border: #cfe2d5;
@@ -878,6 +952,9 @@ footer a:hover { color: var(--blue); }
   --blue-dark: #b3df59;
   --tint: #1a221c;
   --line: #2c333e;
+  /* Without a dark value here the light grey survives into the dark theme
+     and every hovered pill grows a near-white outline. */
+  --line-strong: #3c4655;
   --nav-bg: #0d1118;
   --ok-bg: #1a2b20;
   --ok-border: #365b42;
@@ -1110,7 +1187,7 @@ footer a:hover { color: var(--blue); }
   .toolbar .btn, .result-bar .btn { flex: 1 1 auto; }
   .ws-head { gap: 8px; padding: 12px; }
   .ws-body { padding: 12px; }
-  .ws-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 9px; }
+  .ws-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 14px; }
   .footer-inner { align-items: flex-start; flex-direction: column; gap: 6px; }
   footer .footer-inner span:last-child { text-align: left; }
   .camera-overlay { padding: 10px; }
@@ -1428,8 +1505,6 @@ body { font-size: 1rem; line-height: 1.7; }
   color: var(--ink); font-weight: 600;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
 }
-.ed-selected .ed-selected-meta { font-size: .78rem; color: var(--ink-soft); }
-.ed-selected.is-empty { border-style: dashed; }
 
 .ed-field { color: var(--ink-soft); font-size: .84rem; font-weight: 600; }
 .ed-field > label { line-height: 1.4; }
@@ -1639,3 +1714,29 @@ body { font-size: 1rem; line-height: 1.7; }
     display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
   }
 }
+
+/* ---------- Keyboard reorder ----------
+   The three lists a pointer can reorder - the file-strip chips, the
+   workspace cards and the page-organizer cards - are grids of plain
+   elements, so a keyboard has nothing to land on and nothing to see. The
+   pointer path already has a drag state; this gives the keyboard path the
+   two states it is missing, in the same visual language. Nothing here
+   changes layout, and no colour is hard-coded. */
+
+/* The generic focus ring (top of this file) is enough for a button but not
+   for a card: hovering one already turns its border blue, so a keyboard
+   user who has the mouse parked on the grid would get no new signal at
+   all. The ring is the only cue that is not a colour change, which is why
+   it is drawn outside the card rather than on its edge. */
+.chip:focus-visible,
+.ws-cell:focus-visible,
+.page-card:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+  border-color: var(--blue);
+}
+
+/* Moving a card with the arrow keys scrolls it into view, and the default
+   is to park it flush against the edge of the scroller - where the
+   workspace header covers it and the card looks like it lost focus. */
+.ws-body, .file-strip, .page-organizer-grid { scroll-padding: 14px 10px; }

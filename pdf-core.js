@@ -77,18 +77,42 @@ function closeAllMenus() {
   });
 }
 
-// Reorder cards on touch devices with pointer capture so dragging remains
-// attached to the finger even when it moves beyond the original card.
-function wireTouchSort(container, selector, getItem, onSort) {
+// Reorder cards with pointer capture so dragging stays attached to the pointer
+// even when it moves beyond the original card. Works for touch, pen and mouse,
+// so a workspace never needs a second, browser-driven drag implementation.
+//
+// options.pointerTypes widens which pointer kinds may start a drag (default
+// touch+pen, the historical behaviour) and options.scrollContainer names the
+// element that should be nudged at its edges when that is not the container --
+// a wrapping grid never overflows itself, so its scrolling ancestor is the one
+// that has to move. Both options are optional; callers that pass neither behave
+// exactly as before.
+function wireTouchSort(container, selector, getItem, onSort, options = {}) {
   if (!container) return;
+  const pointerTypes = options.pointerTypes || ["touch", "pen"];
+  const threshold = options.threshold || 6;
+  const resolveScroller = () => {
+    const el = typeof options.scrollContainer === "function" ? options.scrollContainer() : options.scrollContainer;
+    return el || container;
+  };
+  // overflow:hidden still accepts programmatic scrolling, visible/clip does not,
+  // so an axis that is neither is never worth trying to nudge.
+  const canScrollAxis = (value) => value !== "visible" && value !== "clip";
   let state = null;
+  let swallowClick = false;
   container.addEventListener("pointerdown", (event) => {
-    if ((event.pointerType !== "touch" && event.pointerType !== "pen") || event.button !== 0 || event.target.closest("button, input, label")) return;
+    if (!pointerTypes.includes(event.pointerType) || event.button !== 0 || event.target.closest("button, input, label")) return;
     const node = event.target.closest(selector);
     if (!node || !container.contains(node)) return;
     const children = [...container.querySelectorAll(selector)];
+    const scroller = resolveScroller();
+    const style = getComputedStyle(scroller);
     state = {
-      node, pointerId: event.pointerId, x: event.clientX, y: event.clientY, active: false,
+      node, pointerId: event.pointerId, pointerType: event.pointerType,
+      x: event.clientX, y: event.clientY, active: false,
+      scroller,
+      scrollX: canScrollAxis(style.overflowX),
+      scrollY: canScrollAxis(style.overflowY),
       order: children.map(getItem),
       rects: new Map(children.map((child) => [getItem(child), child.getBoundingClientRect()])),
     };
@@ -96,19 +120,30 @@ function wireTouchSort(container, selector, getItem, onSort) {
   });
   container.addEventListener("pointermove", (event) => {
     if (!state || event.pointerId !== state.pointerId) return;
-    if (!state.active && Math.hypot(event.clientX - state.x, event.clientY - state.y) < 6) return;
+    // A re-render mid-drag (a PDF thumbnail finishing, a file being removed) replaces
+    // every node, which detaches the one being dragged. Re-inserting it afterwards
+    // would put a stale copy back beside its replacement and duplicate a file, so
+    // end the gesture cleanly and leave whatever order the re-render produced.
+    if (!state.node.isConnected || state.node.parentElement !== container) { state = null; return; }
+    if (!state.active && Math.hypot(event.clientX - state.x, event.clientY - state.y) < threshold) return;
     state.active = true;
     state.node.classList.add("touch-dragging");
     event.preventDefault();
-    if (container.scrollWidth > container.clientWidth) {
-      const bounds = container.getBoundingClientRect();
-      if (event.clientX < bounds.left + 32) container.scrollLeft -= 18;
-      else if (event.clientX > bounds.right - 32) container.scrollLeft += 18;
+    const { scroller } = state;
+    if (state.scrollX && scroller.scrollWidth > scroller.clientWidth) {
+      const bounds = scroller.getBoundingClientRect();
+      if (event.clientX < bounds.left + 32) scroller.scrollLeft -= 18;
+      else if (event.clientX > bounds.right - 32) scroller.scrollLeft += 18;
+    }
+    if (state.scrollY && scroller.scrollHeight > scroller.clientHeight) {
+      const bounds = scroller.getBoundingClientRect();
+      if (event.clientY < bounds.top + 32) scroller.scrollTop -= 18;
+      else if (event.clientY > bounds.bottom - 32) scroller.scrollTop += 18;
     }
     const target = document.elementFromPoint(event.clientX, event.clientY)?.closest(selector);
     if (!target || target === state.node || !container.contains(target)) return;
     const rect = target.getBoundingClientRect();
-    const horizontal = container.scrollWidth > container.clientWidth;
+    const horizontal = state.scrollX && scroller.scrollWidth > scroller.clientWidth;
     const after = horizontal
       ? event.clientX > rect.left + rect.width / 2
       : event.clientY > rect.top + rect.height / 2 ||
@@ -122,11 +157,24 @@ function wireTouchSort(container, selector, getItem, onSort) {
     state = null;
     current.node.classList.remove("touch-dragging");
     if (!current.active) return;
+    // A completed mouse drag is still followed by a click on whatever sat under
+    // the pointer at release; swallowing just that one click stops the drop from
+    // registering as a tap. Touch already has its own click suppression rules.
+    if (current.pointerType === "mouse") {
+      swallowClick = true;
+      setTimeout(() => { swallowClick = false; }, 0);
+    }
     const ordered = [...container.querySelectorAll(selector)].map(getItem);
     if (ordered.some((item, index) => item !== current.order[index])) onSort(ordered, current.rects);
   };
   container.addEventListener("pointerup", finish);
   container.addEventListener("pointercancel", finish);
+  container.addEventListener("click", (event) => {
+    if (!swallowClick) return;
+    swallowClick = false;
+    event.stopPropagation();
+    event.preventDefault();
+  }, true);
 }
 
 function createFileStrip({ input, stripEl, accept, toolbar, extraMenu, onChange }) {
@@ -172,9 +220,13 @@ function createFileStrip({ input, stripEl, accept, toolbar, extraMenu, onChange 
     items = ordered;
     hideResultBar();
     render({ rects, fromIndex: -1 });
+  }, {
+    // Mouse included so one gesture reorders a chip the same way with a finger
+    // or a cursor. The HTML5 handlers this replaces gave no drop preview, needed
+    // a second insertion rule kept in sync by hand, and lost track of the
+    // dragged chip whenever a PDF thumbnail arrived and re-rendered the strip.
+    pointerTypes: ["mouse", "touch", "pen"],
   });
-
-  let dragFrom = -1; // index currently being drag-reordered
 
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const canAnimate = () => !reduceMotion && items.length < 150;
@@ -193,39 +245,19 @@ function createFileStrip({ input, stripEl, accept, toolbar, extraMenu, onChange 
     items.forEach((item, i) => {
       const chip = document.createElement("div");
       chip.className = "chip";
-      chip.draggable = true;
       chip._fileStripItem = item;
       chip.dataset.i = i;
-      chip.addEventListener("dragstart", (e) => {
-        dragFrom = i;
-        chip.classList.add("dragging");
-        e.dataTransfer.effectAllowed = "move";
-        try { e.dataTransfer.setData("text/plain", item.file.name); } catch {}
-      });
-      chip.addEventListener("dragend", () => {
-        dragFrom = -1;
-        chip.classList.remove("dragging");
-        hideResultBar();
-        // DOM was reordered directly; re-render so menu buttons hold fresh indices
-        render();
-      });
-      chip.addEventListener("dragover", (e) => {
-        if (dragFrom === -1) return;
-        e.preventDefault();
-        const targetIdx = [...strip.children].indexOf(chip);
-        if (targetIdx === -1 || targetIdx === dragFrom) return;
-        // move the DOM node directly — no re-render, no jitter
-        const moving = strip.children[dragFrom];
-        if (targetIdx < dragFrom) strip.insertBefore(moving, chip);
-        else strip.insertBefore(moving, chip.nextSibling);
-        const [moved] = items.splice(dragFrom, 1);
-        items.splice(targetIdx, 0, moved);
-        dragFrom = targetIdx;
-      });
-
       let thumb;
       if (item.url) {
         thumb = document.createElement("img");
+        // An <img> is draggable on its own. Left alone it starts a native drag on
+        // the first move, which cancels the pointer gesture the reorder is built
+        // on and leaves the strip showing an order the model never agreed to.
+        thumb.draggable = false;
+        // Every render() replaces the chips, so each thumbnail is decoded afresh.
+        // Async keeps that decode off the main thread, which matters most during
+        // a drag, when the pointer handler is the only thing driving the frame.
+        thumb.decoding = "async";
         thumb.src = item.url;
         thumb.alt = "";
       } else {
@@ -332,6 +364,17 @@ function createFileStrip({ input, stripEl, accept, toolbar, extraMenu, onChange 
           requestAnimationFrame(() => {
             el.style.transition = "transform .3s cubic-bezier(.2,.8,.2,1)";
             el.style.transform = "";
+            // Hand the chip back to the stylesheet once the slide has finished.
+            // Leaving the inline transition behind outranks the .chip rule from
+            // then on, and that also stops any later rule from being able to
+            // switch transitions off - the drag guard needs to do exactly that.
+            const release = () => {
+              el.style.transition = "";
+              el.style.removeProperty("transform");
+              el.removeEventListener("transitionend", release);
+            };
+            el.addEventListener("transitionend", release);
+            setTimeout(release, 400);
           });
         }
       });
@@ -504,37 +547,58 @@ function wireDropzone(dropzone, input, addFn) {
   dropzone.addEventListener("drop", (e) => { if (!input.disabled) addFn(e.dataTransfer.files); });
 }
 
+// Depth-counted so overlapping work (a user dropping a second file while the
+// first is still opening) cannot lose the lock and leave controls permanently
+// disabled. The snapshot is taken only on the 0 -> 1 edge and restored only when
+// the count returns to 0, which is what the old attribute-presence check got
+// wrong. Restore targets [data-was-disabled] rather than the original selector so
+// a control that appeared mid-operation is handed back too.
+let toolBusyDepth = 0;
+
 function setToolBusy(busy) {
+  if (busy) toolBusyDepth++;
+  else toolBusyDepth = Math.max(0, toolBusyDepth - 1);
+  const locked = toolBusyDepth > 0;
+
   const selector = "#dropzone button, #toolbar button, #organizerToolbar button, #numberOptions button, #themePanel button, #workspaceOverlay button, #organizerWorkspace button, #cropOverlay button";
-  document.querySelectorAll(selector).forEach((button) => {
+  const buttons = busy ? document.querySelectorAll(selector) : document.querySelectorAll("[data-was-disabled]");
+  buttons.forEach((button) => {
     if (busy) {
       if (!button.hasAttribute("data-was-disabled")) button.dataset.wasDisabled = button.disabled ? "true" : "false";
       button.disabled = true;
-    } else if (button.hasAttribute("data-was-disabled")) {
+    } else if (toolBusyDepth === 0 && button.hasAttribute("data-was-disabled")) {
       button.disabled = button.dataset.wasDisabled === "true";
       delete button.dataset.wasDisabled;
     }
   });
-  document.querySelectorAll('#fileInput, #imageInput, #replaceImageInput, #themePanel input').forEach((input) => {
-    if (busy) { input.dataset.wasDisabled = input.disabled ? "true" : "false"; input.disabled = true; }
-    else if (input.hasAttribute("data-was-disabled")) {
+
+  const inputs = busy
+    ? document.querySelectorAll('#fileInput, #imageInput, #replaceImageInput, #themePanel input')
+    : document.querySelectorAll("#fileInput[data-was-disabled], #imageInput[data-was-disabled], #replaceImageInput[data-was-disabled], #themePanel input[data-was-disabled]");
+  inputs.forEach((input) => {
+    if (busy) {
+      if (!input.hasAttribute("data-was-disabled")) input.dataset.wasDisabled = input.disabled ? "true" : "false";
+      input.disabled = true;
+    } else if (toolBusyDepth === 0 && input.hasAttribute("data-was-disabled")) {
       input.disabled = input.dataset.wasDisabled === "true";
       delete input.dataset.wasDisabled;
     }
   });
+
   document.querySelectorAll(".file-strip-wrap, #pageGrid, #editorGrid").forEach((surface) => {
     if (busy) {
       if (!surface.hasAttribute("data-was-pointer-events")) surface.dataset.wasPointerEvents = surface.style.pointerEvents || "";
       surface.style.pointerEvents = "none";
-    } else if (surface.hasAttribute("data-was-pointer-events")) {
+    } else if (toolBusyDepth === 0 && surface.hasAttribute("data-was-pointer-events")) {
       surface.style.pointerEvents = surface.dataset.wasPointerEvents;
       delete surface.dataset.wasPointerEvents;
     }
   });
+
   const status = document.getElementById("status");
   if (status) {
-    status.classList.toggle("working", busy);
-    if (busy) status.setAttribute("aria-busy", "true");
+    status.classList.toggle("working", locked);
+    if (locked) status.setAttribute("aria-busy", "true");
     else status.removeAttribute("aria-busy");
   }
 }
@@ -695,6 +759,9 @@ function toJpegPage(file, crop) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
+    // Decoded off the main thread so a large photo does not stall the conversion
+    // between onload firing and the drawImage call.
+    img.decoding = "async";
     img.onload = () => {
       try {
         URL.revokeObjectURL(url);

@@ -1,0 +1,30 @@
+<!doctype html>
+<!--
+  A controlled page for testing pdf-core.js helpers on their own. It carries the
+  element ids the helpers look for (setToolBusy and friends select by id) and
+  nothing else, so a test can build any DOM it needs and assert exactly what a
+  helper did to it. Lives in tests/ and is never part of the site.
+-->
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <title>pdf-core test harness</title>
+</head>
+<body>
+  <div id="dropzone"><button type="button" id="dropBtn">Choose</button></div>
+  <input id="fileInput" type="file" />
+  <div id="toolbar">
+    <button type="button" id="toolBtnA">A</button>
+    <button type="button" id="toolBtnB">B</button>
+    <button type="button" id="toolBtnDisabled" disabled>C</button>
+  </div>
+  <div class="file-strip-wrap" id="stripWrap"></div>
+  <div class="result-bar" id="resultBar" hidden>
+    <span class="result-text"></span>
+    <span class="name-ext">.pdf</span>
+    <div><button type="button" id="downloadBtn">Download</button></div>
+  </div>
+  <p class="status" id="status" role="status"></p>
+  <script src="/pdf-core.js"></script>
+</body>
+</html>

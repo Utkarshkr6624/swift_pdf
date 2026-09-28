@@ -460,7 +460,9 @@ function positionBoxes() {
     // left to CSS so an unstyled rule cannot ever double-print a line of text.
     box.textContent = item.str;
     box.style.color = "transparent";
-    if (edit) box.setAttribute("aria-label", `Edited to: ${edit.text.slice(0, 60)}`);
+    // Always rewrite it: setting it only when an edit exists left an undone
+    // line still announcing "Edited to: ..." to a screen reader.
+    box.setAttribute("aria-label", edit ? `Edited to: ${edit.text.slice(0, 60)}` : `Text: ${item.str.slice(0, 60)}`);
     box.style.left = `${item.left * displayScale}px`;
     box.style.top = `${item.top * displayScale}px`;
     box.style.width = `${Math.max(6, item.boxWidth * displayScale)}px`;
