@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script>(function(){var t=null;try{t=localStorage.getItem("swiftpdf-theme")}catch(e){}if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content=t;})();</script>
+  <title>File Converter — Word to PDF, PDF to Word, Excel &amp; More | SwiftPDF</title>
+  <meta name="description" content="Convert between PDF, Word, Excel and PowerPoint in your browser, all twelve directions. Files never leave your device." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27><rect width=%2732%27 height=%2732%27 rx=%279%27 fill=%27%232f6bff%27/><path d=%27M10 6h8l5 5v15h-13z%27 fill=%27%23fff%27/></svg>" />
+  <meta name="keywords" content="word to pdf, docx to pdf, pdf to word, pdf to excel, pdf to powerpoint, excel to pdf, pptx to pdf, convert docx to pdf free" />
+  <meta name="robots" content="index, follow" />
+  <meta name="author" content="SwiftPDF" />
+  <meta name="theme-color" content="#2f6bff" />
+  <link rel="canonical" href="https://swift-pdf-beta.vercel.app/word-to-pdf.html" />
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:site_name" content="SwiftPDF" />
+  <meta property="og:title" content="File Converter — Word to PDF, PDF to Word, Excel &amp; More | SwiftPDF" />
+  <meta property="og:description" content="Convert between PDF, Word, Excel and PowerPoint in your browser, all twelve directions. Files never leave your device." />
+  <meta property="og:url" content="https://swift-pdf-beta.vercel.app/word-to-pdf.html" />
+  <meta property="og:image" content="https://swift-pdf-beta.vercel.app/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="File Converter — Word to PDF, PDF to Word, Excel &amp; More | SwiftPDF" />
+  <meta name="twitter:description" content="Convert between PDF, Word, Excel and PowerPoint in your browser, all twelve directions. Files never leave your device." />
+  <meta name="twitter:image" content="https://swift-pdf-beta.vercel.app/og-image.png" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebApplication",
+        "name": "PDF, Word, Excel & PowerPoint File Converter - SwiftPDF",
+        "url": "https://swift-pdf-beta.vercel.app/word-to-pdf.html",
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "Any",
+        "description": "Converts a file between PDF, Word, Excel and PowerPoint in the browser, in any of the twelve directions a format can take. Every result is rebuilt from the text, tables and pictures that can be read out of the file: original fonts, colours, columns, page design and page breaks are not reproduced, and nothing is uploaded.",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://swift-pdf-beta.vercel.app/"},
+          {"@type": "ListItem", "position": 2, "name": "File Converter (PDF, Word, Excel, PowerPoint)", "item": "https://swift-pdf-beta.vercel.app/word-to-pdf.html"}
+        ]
+      }
+    ]
+  }
+  </script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <div class="nav-left">
+        <a class="logo" href="index.html">
+          <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true" role="img" aria-label="SwiftPDF logo">
+            <defs>
+              <linearGradient id="lg-word-to-pdf" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#4d82ff"/>
+                <stop offset="1" stop-color="#2450d8"/>
+              </linearGradient>
+            </defs>
+            <rect width="32" height="32" rx="9" fill="url(#lg-word-to-pdf)"/>
+            <path d="M10 6h8l5 5v15h-13z" fill="#fff" opacity="0.96"/>
+            <path d="M18 6l5 5h-5z" fill="#bcd0ff"/>
+            <path d="M12.5 15.5h7M12.5 19h4.5" stroke="#2450d8" stroke-width="1.7" stroke-linecap="round"/>
+          </svg>
+          SwiftPDF
+        </a>
+        <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle dark mode">
+          <svg class="icon-moon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+          <svg class="icon-sun" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4 1.4"/></svg>
+        </button>
+      </div>
+      <div class="nav-links">
+        <a href="index.html">Home</a>
+        <a href="about.html">About</a>
+        <a href="contact.html">Contact</a>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    <div class="page-head container">
+      <a class="back" href="index.html">&larr; All tools</a>
+      <h1 id="pageTitle">Word to PDF Converter</h1>
+      <p>Convert between PDF, Word, Excel and PowerPoint on this device — a Word <b>.docx</b> into a PDF and the other eleven directions as well. Every result is rebuilt from the words, tables and pictures inside the file, not from its design. Nothing is uploaded.</p>
+    </div>
+
+    <div class="container" style="padding-bottom:96px;">
+      <div class="format-picker" id="formatPicker">
+        <div class="format-field">
+          <label for="fromFormat">Convert from</label>
+          <select class="name-input" id="fromFormat" name="fromFormat">
+            <option value="pdf">PDF (.pdf)</option>
+            <option value="docx" selected>Word (.docx)</option>
+            <option value="xlsx">Excel (.xlsx)</option>
+            <option value="pptx">PowerPoint (.pptx)</option>
+          </select>
+        </div>
+        <div class="format-field">
+          <label for="toFormat">Convert to</label>
+          <select class="name-input" id="toFormat" name="toFormat">
+            <option value="pdf" selected>PDF (.pdf)</option>
+            <option value="docx">Word (.docx)</option>
+            <option value="xlsx">Excel (.xlsx)</option>
+            <option value="pptx">PowerPoint (.pptx)</option>
+          </select>
+        </div>
+      </div>
+      <!-- The note for the pair the page opens on, written out here so the first
+           paint is the finished size; word-to-pdf.js rewrites it on every change. -->
+      <p class="format-note" id="formatNote">The words, tables and pictures are copied into a new PDF set in a standard font. The page size, margins and page breaks are new, and Word's fonts, colours, columns, headers, footnotes and text boxes are not carried over.</p>
+
+      <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Choose a Word document or drop it here">
+        <h3 id="dropTitle">Select a Word document</h3>
+        <p id="dropHint">or drag &amp; drop it here &mdash; one Word document (.docx) at a time</p>
+        <button class="btn btn-primary" type="button" onclick="event.stopPropagation(); fileInput.click()">Choose file</button>
+        <input type="file" id="fileInput" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple hidden />
+      </div>
+
+      <div class="toolbar" id="toolbar" hidden>
+        <span class="toolbar-hint">
+          <strong id="fileLabel" style="display:block; color:var(--ink);"></strong>
+          <span id="toolbarHint">One file at a time. The result is rebuilt text and tables &mdash; not the original fonts, colours or layout.</span>
+        </span>
+        <div style="display:flex; gap:10px;">
+          <button class="btn btn-ghost" id="clearBtn" type="button">Remove file</button>
+          <button class="btn btn-done" id="convertBtn" type="button">Convert to PDF</button>
+        </div>
+        <div class="merge-compress" id="convertCompress" hidden>
+          <label class="merge-compress-toggle" for="compressToggle" style="min-height:44px;">
+            <input type="checkbox" id="compressToggle" style="width:24px; height:24px;" />
+            <span>Also compress the PDF</span>
+          </label>
+          <div class="pills merge-compress-quality" id="compressQuality" hidden>
+            <button class="pill" data-q="small" type="button" style="min-height:40px;">Smallest</button>
+            <button class="pill selected" data-q="medium" type="button" style="min-height:40px;">Balanced</button>
+            <button class="pill" data-q="high" type="button" style="min-height:40px;">Best quality</button>
+          </div>
+          <p class="merge-compress-note">Compressing re-renders every page as an image to shrink the file. The result looks the same, but the text is no longer selectable or searchable.</p>
+        </div>
+      </div>
+      <div class="result-bar" id="resultBar" hidden>
+        <span class="result-text" id="resultText">Your PDF is ready. Open it and check it before you rely on it.</span>
+        <div class="name-row">
+          <input class="name-input" id="fileName" type="text" placeholder="document" aria-label="Output file name" maxlength="80" />
+          <span class="name-ext">.pdf</span>
+        </div>
+        <div style="display:flex; gap:10px;">
+          <button class="btn btn-ghost" id="newJobBtn" type="button">Start another</button>
+          <button class="btn btn-ghost" id="previewBtn" type="button">Preview</button>
+          <button class="btn btn-primary result-download" id="downloadBtn" type="button">&#8595; Download PDF</button>
+        </div>
+      </div>
+      <p class="status" id="status" role="status"></p>
+
+      <div id="notes" hidden style="margin-top:14px;">
+        <p class="toolbar-hint" id="notesTitle" style="margin:0; font-weight:600;">What this conversion does not keep</p>
+        <ul class="toolbar-hint" id="notesList" style="margin:6px 0 0; padding-left:20px; display:grid; gap:4px;"></ul>
+      </div>
+
+      <section class="conv-list" aria-labelledby="pairHeading">
+        <h2 id="pairHeading">Every conversion this page makes</h2>
+        <p class="conv-list-lead">A format is never converted into itself, so there are twelve. Each one keeps the words, tables and pictures it can read and rebuilds them; none of them keeps the original fonts, colours, page design or page breaks.</p>
+        <ul>
+          <li><b>PDF (.pdf)</b> &rarr; Word (.docx), Excel (.xlsx) or PowerPoint (.pptx)</li>
+          <li><b>Word (.docx)</b> &rarr; PDF (.pdf), Excel (.xlsx) or PowerPoint (.pptx)</li>
+          <li><b>Excel (.xlsx)</b> &rarr; PDF (.pdf), Word (.docx) or PowerPoint (.pptx)</li>
+          <li><b>PowerPoint (.pptx)</b> &rarr; PDF (.pdf), Word (.docx) or Excel (.xlsx)</li>
+        </ul>
+        <p class="conv-list-lead">Older <b>.doc</b>, <b>.ppt</b> and <b>.xls</b> files, macro-enabled documents and files that ask for a password cannot be opened here &mdash; open them in their own app and save a copy in the newer format first. One file is converted at a time. Nothing is uploaded: your file never leaves this device, and the conversion engine is fetched from the internet the first time you use it.</p>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <span>&copy; 2026 SwiftPDF</span>
+      <span><a href="privacy.html">Privacy</a> &nbsp;·&nbsp; <a href="terms.html">Terms</a> &nbsp;·&nbsp; <a href="contact.html">Contact</a> &nbsp;·&nbsp; <a href="mailto:utkarsh6624@gmail.com">utkarsh6624@gmail.com</a></span>
+    </div>
+  </footer>
+
+  <script src="pdf-core.js"></script>
+  <script src="word-to-pdf.js"></script>
+  <script src="theme.js"></script>
+</body>
+</html>

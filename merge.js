@@ -1,4 +1,5 @@
-// Merge PDF tool — merges PDFs via pdf-lib; Office files get an honest message
+// Merge PDF tool — merges PDFs via pdf-lib; Word, PowerPoint and Excel files
+// are converted to PDF here first, and what that conversion loses is said out loud
 const dropzone = document.getElementById("dropzone");
 const fileInput = document.getElementById("fileInput");
 const stripEl = document.getElementById("fileStrip");
@@ -31,18 +32,61 @@ if (compressToggle && compressQuality) {
   });
 }
 
-const strip = createFileStrip({ input: fileInput, stripEl, accept: "pdf", toolbar });
+const strip = createFileStrip({ input: fileInput, stripEl, accept: "pdf-office", toolbar });
 wireDropzone(dropzone, fileInput, (f) => strip.addFiles(f));
 wireStartAnother(fileInput, () => strip.clear());
 
 clearBtn.addEventListener("click", () => strip.clear());
 
+// Older Office formats the browser cannot open, named before any work starts. The
+// newer .docx/.pptx/.xlsx files are converted instead, so these are the ones worth
+// stopping for rather than failing halfway through a merge.
+const LEGACY_OFFICE = /\.(doc|ppt|xls|odt|ods|odp|rtf)$/i;
+
+// office-to-pdf.js answers this from the file name, and the page repeats the test
+// only to notice an Office file before the engine is known to have loaded.
+const OFFICE_NAME = /\.(docx|pptx|xlsx)$/i;
+
+// Keeps the result bar to one readable sentence. The converted filenames and
+// the engine's warnings matter, but they are reference detail, not the headline.
+function showMergeNotes(converted, warnings, extra) {
+  const details = document.getElementById("mergeNotes");
+  const body = document.getElementById("mergeNotesBody");
+  const summary = document.getElementById("mergeNotesSummary");
+  if (!details || !body) return;
+  const convertedNames = converted || [];
+  const notes = (warnings || []).concat(extra || []);
+  if (!convertedNames.length && !notes.length) { details.hidden = true; return; }
+  body.innerHTML = "";
+  if (convertedNames.length) {
+    const label = document.createElement("p");
+    label.className = "merge-notes-label";
+    label.textContent = `Converted from ${convertedNames.length} file${convertedNames.length === 1 ? "" : "s"}:`;
+    const list = document.createElement("ul");
+    convertedNames.forEach((name) => { const li = document.createElement("li"); li.textContent = name; list.appendChild(li); });
+    body.append(label, list);
+  }
+  if (notes.length) {
+    const label = document.createElement("p");
+    label.className = "merge-notes-label";
+    label.textContent = "Differences from the originals:";
+    const list = document.createElement("ul");
+    notes.forEach((note) => { const li = document.createElement("li"); li.textContent = note; list.appendChild(li); });
+    body.append(label, list);
+  }
+  if (summary) summary.textContent = convertedNames.length
+    ? `Converted ${convertedNames.length} file${convertedNames.length === 1 ? "" : "s"} — what could not be kept`
+    : "What could not be kept";
+  details.hidden = false;
+  details.open = false;
+}
+
 convertBtn.addEventListener("click", async () => {
   const items = strip.items;
   if (!items.length) return;
-  const office = items.filter((it) => /\.(docx?|pptx?|xlsx?|odt)$/i.test(it.file.name));
-  if (office.length) {
-    setStatus(`Word/PowerPoint files can't be converted in the browser — that needs a conversion server, which is on the roadmap. Remove ${office.length > 1 ? "them" : "it"} (or convert to PDF first) and merge the PDFs.`, "error");
+  const legacy = items.find((it) => LEGACY_OFFICE.test(it.file.name));
+  if (legacy) {
+    setStatus(`${legacy.file.name} is an older Word, PowerPoint or Excel file. SwiftPDF opens the newer .docx, .pptx and .xlsx files; open this one in the app it came from and save it in the newer format, or save it as PDF, then merge again.`, "error");
     return;
   }
 
@@ -58,9 +102,37 @@ convertBtn.addEventListener("click", async () => {
     const pdfLib = await loadPdfLib();
     const merged = await pdfLib.PDFDocument.create();
     const flattenedFiles = [];
+    const converted = [];
+    const officeWarnings = [];
+    // office-to-pdf.js is 41 KB gzipped on its own and nothing here needs it
+    // until an Office file is in play, so it is fetched now rather than on page
+    // load. If it did not come, an Office file has no way through, and a missing
+    // script is a different problem from a damaged document, so it is named as one.
+    let office = null;
+    if (items.some((it) => OFFICE_NAME.test(it.file.name))) {
+      try {
+        office = await loadOfficeToPdf();
+      } catch (loadError) {
+        console.warn(loadError);
+      }
+      if (!office) {
+        throw new Error("The Word, PowerPoint and Excel converter did not load. Reload the page and try again.");
+      }
+    }
+    // With no engine to ask, the name is all there is to go on — and it is
+    // what the engine answers with anyway, so the two routes cannot disagree.
+    const isOffice = (file) => (office ? office.isOfficeFile(file) : OFFICE_NAME.test(file.name));
     for (const item of items) {
       currentName = item.file.name;
-      const bytes = await item.file.arrayBuffer();
+      let bytes;
+      let added = item.file.name;
+      if (isOffice(item.file)) {
+        bytes = await convertOfficeFile(item.file, officeWarnings);
+        converted.push(item.file.name);
+        added = item.file.name + " (converted to PDF)";
+      } else {
+        bytes = await item.file.arrayBuffer();
+      }
       try {
         // Do not bypass encryption checks here: pdf-lib can copy encrypted streams without decrypting them.
         // Its normal error path sends restricted PDFs through the PDF.js renderer below instead.
@@ -73,7 +145,7 @@ convertBtn.addEventListener("click", async () => {
         await appendRenderedPdf(merged, bytes, pdfLib, item.file.name);
         flattenedFiles.push(item.file.name);
       }
-      setStatus("Merging… added " + item.file.name);
+      setStatus("Merging… added " + added);
     }
     const mergedBytes = await merged.save();
     const inputSize = items.reduce((total, it) => total + it.file.size, 0);
@@ -93,11 +165,27 @@ convertBtn.addEventListener("click", async () => {
     const blob = new Blob([bytes], { type: "application/pdf" });
     showResult(blob, "merged.pdf");
     const resultText = document.querySelector(".result-text");
-    if (compressed && flattenedFiles.length) {
+    if (converted.length) {
+      // The conversion is lossy, so its warnings are shown word for word rather
+      // than summarised away: someone merging a Hindi or Chinese document has to
+      // be told that those characters come out as "?".
+      const extra = [];
+      if (compressed) extra.push(note.trim());
+      if (flattenedFiles.length) {
+        extra.push(`${flattenedFiles.length === 1 ? flattenedFiles[0] : `${flattenedFiles.length} PDFs`} needed a compatibility fallback, so those pages were rendered as images.`);
+      }
+      // One short line, and everything else behind a disclosure. Dumping every
+      // filename and every warning into this sentence made the result unreadable
+      // on a merge of a dozen files, and then repeated it in the status line.
+      resultText.textContent = `Merged ${items.length} file${items.length === 1 ? "" : "s"} — ${formatSize(bytes.length)}. ${converted.length} converted to PDF first.`;
+      showMergeNotes(converted, officeWarnings, extra);
+      setStatus(`Merged ${items.length} file${items.length === 1 ? "" : "s"} — ${formatSize(bytes.length)}. ${converted.length} Word, PowerPoint or Excel file${converted.length === 1 ? " was" : "s were"} converted here first.`, "success");
+    } else if (compressed && flattenedFiles.length) {
       resultText.textContent = `Merged and compressed. ${flattenedFiles.length === 1 ? flattenedFiles[0] : `${flattenedFiles.length} PDFs`} needed a compatibility fallback, so those pages were rendered as images.${note}`;
       setStatus("Merged and compressed. Some pages were rendered for compatibility.", "success");
     } else if (compressed) {
-      resultText.textContent = `Merged and compressed.${note}`;
+      resultText.textContent = `Merged ${items.length} PDF${items.length === 1 ? "" : "s"} — ${formatSize(bytes.length)}.${note.trim() ? " " + note.trim() : ""}`;
+      showMergeNotes([], [], []);
       setStatus(`Merged ${items.length} PDF${items.length === 1 ? "" : "s"} and compressed.${note}`, "success");
     } else if (flattenedFiles.length) {
       const details = flattenedFiles.length === 1 ? flattenedFiles[0] : `${flattenedFiles.length} PDFs`;
@@ -115,6 +203,25 @@ convertBtn.addEventListener("click", async () => {
     setToolBusy(false);
   }
 });
+
+// A Word, PowerPoint or Excel file becomes a PDF here, in the browser, before
+// the merge starts. The engine's warnings are kept and shown afterwards instead
+// of being swallowed: it carries text and images across, not the original layout,
+// and characters outside the standard PDF font come out as "?".
+async function convertOfficeFile(file, warnings) {
+  setStatus(`Converting ${file.name} to PDF…`);
+  // Already fetched by the merge above; the loader hands back the same promise.
+  const office = await loadOfficeToPdf();
+  const result = await office.toPdf(file, {
+    onProgress: (done, total, label) => setStatus(`Converting ${file.name} — ${label || `step ${done} of ${total}`}…`),
+  });
+  for (const warning of result.warnings || []) {
+    // Several files of the same kind report the same warning. One copy of each is
+    // enough, and the file names are listed beside them.
+    if (warnings.indexOf(warning) === -1) warnings.push(warning);
+  }
+  return result.bytes;
+}
 
 async function appendRenderedPdf(target, bytes, pdfLib, filename) {
   const pdfjs = await loadPdfJs();

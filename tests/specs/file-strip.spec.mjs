@@ -176,11 +176,14 @@ test(
     await touchStartAt(t, start);
     await touchHoldAt(t, { x: start.x + 20, y: start.y }, 2);
 
-    // Something rebuilds the strip while the finger is still down.
-    await addPdfs(t, ["four.pdf"], 4);
+    // Something would rebuild the strip while the finger is still down. The
+    // rebuild is now held back until the gesture ends, so the new chip cannot
+    // appear underneath a finger that is still dragging.
+    await addFiles(t, "#fileInput", pdfs("four.pdf"));
 
     await touchHoldAt(t, { x: start.x + 240, y: start.y }, 4);
     await touchEnd(t);
+    await t.page.waitForFunction(() => document.querySelectorAll(".file-strip .chip").length === 4, null, { timeout: 6000 }).catch(() => {});
     await t.page.waitForTimeout(300);
 
     const chips = await chipNames(t);

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script>(function(){var t=null;try{t=localStorage.getItem("swiftpdf-theme")}catch(e){}if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="color-scheme"]');if(m)m.content=t;})();</script>
   <title>Merge PDF — Combine PDF Files into One | SwiftPDF</title>
-  <meta name="description" content="Merge multiple PDFs in your browser, including permission-restricted documents. Drag to reorder; files stay on your device. Open-password PDFs need the correct password." />
+  <meta name="description" content="Merge PDFs together, and add Word, Excel or PowerPoint files, which are converted to PDF in your browser first. Nothing is uploaded." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -20,12 +20,12 @@
   <meta property="og:locale" content="en_US" />
   <meta property="og:site_name" content="SwiftPDF" />
   <meta property="og:title" content="Merge PDF — Combine PDF Files into One | SwiftPDF" />
-  <meta property="og:description" content="Merge multiple PDFs in your browser, including permission-restricted documents. Drag to reorder; files stay on your device. Open-password PDFs need the correct password." />
+  <meta property="og:description" content="Merge PDFs together, and add Word, Excel or PowerPoint files, which are converted to PDF in your browser first. Nothing is uploaded." />
   <meta property="og:url" content="https://swift-pdf-beta.vercel.app/merge-pdf.html" />
   <meta property="og:image" content="https://swift-pdf-beta.vercel.app/og-image.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Merge PDF — Combine PDF Files into One | SwiftPDF" />
-  <meta name="twitter:description" content="Merge multiple PDFs in your browser, including permission-restricted documents. Drag to reorder; files stay on your device. Open-password PDFs need the correct password." />
+  <meta name="twitter:description" content="Merge PDFs together, and add Word, Excel or PowerPoint files, which are converted to PDF in your browser first. Nothing is uploaded." />
   <meta name="twitter:image" content="https://swift-pdf-beta.vercel.app/og-image.png" />
   <script type="application/ld+json">
   {
@@ -88,21 +88,22 @@
     <div class="page-head container">
       <a class="back" href="index.html">&larr; All tools</a>
       <h1>Merge PDF</h1>
-      <p>Join PDFs in the order you choose. Permission-restricted documents use a page-rendering fallback; PDFs with an open password need the correct password. Files stay on your device.</p>
+      <p>Join PDFs in the order you choose, and add Word, PowerPoint or Excel files too: they are converted to PDF here in your browser first, keeping their text and images but not the original layout. Permission-restricted documents use a page-rendering fallback; PDFs with an open password need the correct password. Files stay on your device.</p>
     </div>
 
     <div class="container" style="padding-bottom:96px;">
-      <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Choose PDFs or drop them here">
-        <h3>Select PDFs</h3>
-        <p>or drag & drop them here</p>
+      <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Choose PDF, Word, PowerPoint or Excel files, or drop them here">
+        <h3>Select PDFs, Word, PowerPoint or Excel files</h3>
+        <p>or drag &amp; drop them here</p>
         <button class="btn btn-primary" type="button" onclick="event.stopPropagation(); fileInput.click()">Choose files</button>
-        <input type="file" id="fileInput" accept="application/pdf" multiple hidden />
+        <input type="file" id="fileInput" accept="application/pdf,.docx,.pptx,.xlsx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple hidden />
       </div>
 
       <div id="fileStrip"></div>
 
       <div class="toolbar" id="toolbar" hidden>
-        <span class="toolbar-hint">The PDFs are merged in this order.</span>
+        <span class="toolbar-hint">The files are merged in this order.</span>
+        <p class="merge-compress-note">Word, PowerPoint and Excel files (.docx, .pptx, .xlsx) are converted to PDF here in your browser before they are merged, so nothing is uploaded. The conversion keeps the text, tables and images, but it does not reproduce the original layout: fonts, colours, columns, headers, footnotes and text boxes are left out, and characters outside the standard PDF font — Hindi, Chinese, emoji — are replaced with “?”. The exact notes for each file are shown when the merge finishes.</p>
         <div style="display:flex; gap:10px;">
           <button class="btn btn-ghost" id="wsBtn" type="button">Edit files</button>
           <button class="btn btn-ghost" id="clearBtn" type="button">Clear all</button>
@@ -123,6 +124,14 @@
       </div>
       <div class="result-bar" id="resultBar" hidden>
         <span class="result-text">Your merged PDF is ready to download.</span>
+        <details class="merge-notes" id="mergeNotes" hidden>
+          <summary id="mergeNotesSummary">What was converted, and what could not be kept</summary>
+          <div class="merge-notes-body" id="mergeNotesBody"></div>
+        </details>
+        <details class="merge-notes" id="mergeNotes" hidden>
+          <summary id="mergeNotesSummary">What was converted, and what could not be kept</summary>
+          <div class="merge-notes-body" id="mergeNotesBody"></div>
+        </details>
         <div class="name-row">
           <input class="name-input" id="fileName" type="text" placeholder="merged" aria-label="PDF file name" maxlength="80" />
           <span class="name-ext">.pdf</span>

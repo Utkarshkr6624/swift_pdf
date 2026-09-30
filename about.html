@@ -29,6 +29,42 @@
   <meta name="twitter:description" content="SwiftPDF is a free suite of PDF tools that process your files in your browser. No file uploads or accounts required — learn how and why we built it." />
   <meta name="twitter:image" content="https://swift-pdf-beta.vercel.app/og-image.png" />
   <link rel="stylesheet" href="styles.css" />
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebPage",
+      "@id": "https://swift-pdf-beta.vercel.app/about.html",
+      "url": "https://swift-pdf-beta.vercel.app/about.html",
+      "name": "About SwiftPDF",
+      "description": "What SwiftPDF is, how the tools work, and what each conversion keeps and leaves out. Everything runs in your browser and no file is ever uploaded.",
+      "isPartOf": {
+        "@id": "https://swift-pdf-beta.vercel.app/"
+      },
+      "inLanguage": "en"
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://swift-pdf-beta.vercel.app/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "About SwiftPDF",
+          "item": "https://swift-pdf-beta.vercel.app/about.html"
+        }
+      ]
+    }
+  ]
+}
+    </script>
+
 </head>
 <body>
   <nav class="nav">
@@ -78,8 +114,15 @@
       </section>
 
       <section>
-        <h2>One honest limitation</h2>
-        <p>Converting Word or PowerPoint files to PDF can't be done inside a browser — it needs a conversion server. That's on the roadmap; for now, export those documents to PDF first and use the merge tool.</p>
+        <h2>What the converter does and does not keep</h2>
+        <p>The file converter handles PDF, Word, Excel and PowerPoint in every direction, all inside your
+        browser, and Merge PDF accepts those files alongside PDFs. What it cannot do is copy a
+        document's design. A converted file keeps the words, headings, tables and pictures and rebuilds
+        them in reading order in a standard font. It does not reproduce the original fonts, colours,
+        columns, headers, footnotes or text boxes, and characters outside a standard PDF font &mdash;
+        Hindi, Chinese, emoji &mdash; come out as &ldquo;?&rdquo;. The older binary formats (.doc, .ppt,
+        .xls) are not read either; save those in the newer format first. If you need the exact original
+        layout, export a PDF from Word, Excel or PowerPoint instead.</p>
       </section>
 
       <section>

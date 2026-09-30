@@ -169,12 +169,33 @@ function wireTouchSort(container, selector, getItem, onSort, options = {}) {
   };
   container.addEventListener("pointerup", finish);
   container.addEventListener("pointercancel", finish);
+  // Callers that suspend work mid-gesture need to know it is over even when the
+  // order did not change and onSort never runs.
+  if (typeof options.onEnd === "function") {
+    container.addEventListener("pointerup", () => options.onEnd(), true);
+    container.addEventListener("pointercancel", () => options.onEnd(), true);
+  }
   container.addEventListener("click", (event) => {
     if (!swallowClick) return;
     swallowClick = false;
     event.stopPropagation();
     event.preventDefault();
   }, true);
+}
+
+// A file counts as a PDF by the type it reports or by its name, because either
+// one can be wrong on its own: a renamed .docx arrives as application/pdf, and a
+// real PDF sometimes arrives with an empty type.
+function isPdfFile(f) {
+  return f.type === "application/pdf" || /\.pdf$/i.test(f.name);
+}
+
+// Word, PowerPoint and Excel. office-to-pdf.js is asked when the page has it,
+// and the name is used when it does not, so a strip that offers them still
+// knows which files to accept.
+function isOfficeFile(f) {
+  if (window.SwiftOffice && window.SwiftOffice.isOfficeFile) return window.SwiftOffice.isOfficeFile(f);
+  return /\.(docx|pptx|xlsx)$/i.test(f.name);
 }
 
 function createFileStrip({ input, stripEl, accept, toolbar, extraMenu, onChange }) {
@@ -226,6 +247,7 @@ function createFileStrip({ input, stripEl, accept, toolbar, extraMenu, onChange 
     // a second insertion rule kept in sync by hand, and lost track of the
     // dragged chip whenever a PDF thumbnail arrived and re-rendered the strip.
     pointerTypes: ["mouse", "touch", "pen"],
+    onEnd: flushPending,
   });
 
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -237,8 +259,55 @@ function createFileStrip({ input, stripEl, accept, toolbar, extraMenu, onChange 
     return map;
   }
 
+  // A thumbnail that finishes while the user is mid-drag must not rebuild the
+  // strip under their finger: that both cancels the reorder (the node being
+  // dragged is detached) and makes the whole list appear to jump. Hold the call
+  // and apply it once the gesture is over - the drag's own render flushes it.
+  let renderPending = null;
+  let renderBackstop = 0;
+  function flushPending() {
+    clearTimeout(renderBackstop);
+    renderBackstop = 0;
+    if (!renderPending) return;
+    const held = renderPending;
+    renderPending = null;
+    render(held);
+  }
+  // Puts one finished thumbnail onto its own chip and leaves every other chip
+  // exactly as it is. That is what keeps the row still while thumbnails arrive
+  // one at a time, instead of the strip flashing once per file.
+  function applyThumbToChip(item) {
+    if (!item || !item.url) return false;
+    const chip = [...strip.children].find((el) => el._fileStripItem === item);
+    if (!chip) return false;
+    const current = chip.querySelector(".chip-thumb");
+    if (current && current.getAttribute("src") === item.url) return true;
+    const img = document.createElement("img");
+    img.className = "chip-thumb";
+    img.alt = "";
+    img.draggable = false;
+    img.decoding = "async";
+    img.src = item.url;
+    const fallback = chip.querySelector(".chip-fallback");
+    if (fallback) chip.replaceChild(img, fallback);
+    else chip.insertBefore(img, chip.firstChild);
+    return true;
+  }
+
   function render(opts = {}) {
-    closeAllMenus();
+    // moment would call closeAllMenus() and snatch the menu out from under the user.
+    if (strip.querySelector(".chip.touch-dragging")) {
+      renderPending = opts;
+      // Belt and braces: a gesture can end without a pointer event reaching
+      // the page (an interrupted touch, a system gesture, the captured element
+      // being removed). Without this backstop the strip would never repaint.
+      if (!renderBackstop) renderBackstop = setTimeout(flushPending, 400);
+      return;
+    }
+    renderPending = null;
+    // A thumbnail arriving mid-interaction must not snatch an open chip menu out
+    // from under the user; every other render still tidies up as before.
+    if (!opts.keepMenus) closeAllMenus();
     strip.innerHTML = "";
     const frag = document.createDocumentFragment();
 
@@ -257,6 +326,8 @@ function createFileStrip({ input, stripEl, accept, toolbar, extraMenu, onChange 
         // Every render() replaces the chips, so each thumbnail is decoded afresh.
         // Async keeps that decode off the main thread, which matters most during
         // a drag, when the pointer handler is the only thing driving the frame.
+        thumb.className = "chip-thumb";
+
         thumb.decoding = "async";
         thumb.src = item.url;
         thumb.alt = "";
@@ -406,7 +477,7 @@ function createFileStrip({ input, stripEl, accept, toolbar, extraMenu, onChange 
       if (matches(f)) {
         const item = { file: f, url: makesThumb() ? URL.createObjectURL(f) : null, crop: null };
         items.push(item);
-        if (accept === "pdf") queuePdfThumb(item);
+        if (accept === "pdf" || accept === "pdf-office") queuePdfThumb(item);
       }
       else skipped++;
     }
@@ -415,7 +486,8 @@ function createFileStrip({ input, stripEl, accept, toolbar, extraMenu, onChange 
   }
 
   function matches(f) {
-    if (accept === "pdf") return f.type === "application/pdf" || /\.pdf$/i.test(f.name);
+    if (accept === "pdf") return isPdfFile(f);
+    if (accept === "pdf-office") return isPdfFile(f) || isOfficeFile(f);
     if (accept === "image") {
       // Let the browser's image decoder decide which image formats it can actually read.
       return /^image\//i.test(f.type || "") || /\.(jpe?g|jpe|jfif|png|webp|gif|bmp|dib|avif|apng|tif|tiff|ico|svg|heic|heif)$/i.test(f.name);
@@ -423,7 +495,11 @@ function createFileStrip({ input, stripEl, accept, toolbar, extraMenu, onChange 
     return false;
   }
   function makesThumb() { return accept === "image"; }
-  function acceptLabel() { return accept === "pdf" ? "PDF files" : "image formats supported by your browser"; }
+  function acceptLabel() {
+    if (accept === "pdf") return "PDF files";
+    if (accept === "pdf-office") return "PDF files, or Word, PowerPoint and Excel files (.docx, .pptx, .xlsx)";
+    return "image formats supported by your browser";
+  }
 
   // Sequential queue so many PDFs render their first page one after another
   let thumbChain = Promise.resolve();
@@ -443,8 +519,20 @@ function createFileStrip({ input, stripEl, accept, toolbar, extraMenu, onChange 
     let canvas = null;
     try {
       const pdfjs = await loadPdfJs();
-      const data = await item.file.arrayBuffer();
-      pdf = await pdfjs.getDocument({ data }).promise;
+      let source;
+      if (isOfficeFile(item.file)) {
+        // A .docx/.pptx/.xlsx is not a PDF, so pdf.js cannot open it. Convert the
+        // first page instead; the engine is fetched here, because this is the
+        // first moment an Office file has actually been opened.
+        let office;
+        try { office = await loadOfficeToPdf(); } catch (err) { return; }
+        const converted = await office.toPdf(item.file);
+        // Hand pdf.js its own copy: it detaches the buffer it is handed.
+        source = new Uint8Array(converted.bytes).slice();
+      } else {
+        source = new Uint8Array(await item.file.arrayBuffer());
+      }
+      pdf = await pdfjs.getDocument({ data: source }).promise;
       page = await pdf.getPage(1);
       const base = page.getViewport({ scale: 1 });
       const s = 160 / base.width;
@@ -456,7 +544,10 @@ function createFileStrip({ input, stripEl, accept, toolbar, extraMenu, onChange 
       const blob = await new Promise((res) => canvas.toBlob(res, "image/jpeg", 0.8));
       if (blob && items.includes(item)) {
         item.url = URL.createObjectURL(blob);
-        render({ rects: null, fromIndex: -1 });
+        // Only this one chip changes. Rebuilding the whole strip re-created
+        // every <img>, so the page flashed and the row appeared to shake
+        // once per file as each thumbnail decoded again.
+        applyThumbToChip(item);
       }
     } catch (err) {
       // keep fallback tile
@@ -852,3 +943,242 @@ function loadJsZip() {
   }).catch((error) => { jsZipLoadPromise = null; throw error; });
   return jsZipLoadPromise;
 }
+
+/* ---------- Office converter and writer loaders ---------- */
+// office-to-pdf.js and file-writers.js are this site's own two heaviest scripts,
+// 41 KB gzipped between them, and neither is needed until a Word, PowerPoint or
+// Excel file is actually in play. They are fetched on first use here, exactly as
+// the three CDN libraries above are, so a visit that never opens an Office file
+// never pays for them.
+function loadSiteScript(url, missingMessage) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = url;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error(missingMessage));
+    document.head.appendChild(s);
+  });
+}
+
+const OFFICE_TO_PDF_URL = "office-to-pdf.js";
+const OFFICE_TO_PDF_MISSING =
+  "The Word, PowerPoint and Excel converter could not load. Check your internet connection, reload this page and try again.";
+let officeToPdfLoadPromise = null;
+
+function loadOfficeToPdf() {
+  if (window.SwiftOffice) return Promise.resolve(window.SwiftOffice);
+  if (officeToPdfLoadPromise) return officeToPdfLoadPromise;
+  officeToPdfLoadPromise = loadSiteScript(OFFICE_TO_PDF_URL, OFFICE_TO_PDF_MISSING)
+    .then(() => {
+      if (!window.SwiftOffice) throw new Error("The Word, PowerPoint and Excel converter loaded but could not be started.");
+      return window.SwiftOffice;
+    })
+    .catch((error) => { officeToPdfLoadPromise = null; throw error; });
+  return officeToPdfLoadPromise;
+}
+
+const FILE_WRITERS_URL = "file-writers.js";
+const FILE_WRITERS_MISSING =
+  "The Word, Excel and PowerPoint writer could not load. Check your internet connection, reload this page and try again.";
+let fileWritersLoadPromise = null;
+
+function loadFileWriters() {
+  if (window.SwiftFileWriters) return Promise.resolve(window.SwiftFileWriters);
+  if (fileWritersLoadPromise) return fileWritersLoadPromise;
+  fileWritersLoadPromise = loadSiteScript(FILE_WRITERS_URL, FILE_WRITERS_MISSING)
+    .then(() => {
+      if (!window.SwiftFileWriters) throw new Error("The Word, Excel and PowerPoint writer loaded but could not be started.");
+      return window.SwiftFileWriters;
+    })
+    .catch((error) => { fileWritersLoadPromise = null; throw error; });
+  return fileWritersLoadPromise;
+}
+
+/* ---------- Shared PDF compression (pages re-rendered as JPEG) ---------- */
+
+// The three trade-offs the Merge tool already offers, under the same level names
+// so one control can be reused verbatim: the render scale and the JPEG quality
+// move together, because a page drawn at 1.2x cannot show detail a 0.5 JPEG
+// encoder threw away.
+const PDF_COMPRESS_LEVELS = {
+  small: { scale: 1.2, jpeg: 0.5, label: "Smallest" },
+  medium: { scale: 1.6, jpeg: 0.68, label: "Balanced" },
+  high: { scale: 2.0, jpeg: 0.85, label: "Best quality" },
+};
+
+// toDataURL would hand back a base64 string, which costs roughly 2.7 bytes of
+// memory for every byte of image; the raw blob bytes are what the writer wants.
+function encodeCanvasJpeg(canvas, jpegQuality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(async (blob) => {
+      if (!blob) return reject(new Error("This browser could not encode a page as an image."));
+      try {
+        resolve(new Uint8Array(await blob.arrayBuffer()));
+      } catch (err) {
+        reject(err);
+      }
+    }, "image/jpeg", jpegQuality);
+  });
+}
+
+// Streaming PDF writer. buildPdf() cannot start until it has every page, so a long
+// document would sit in memory as one base64 string per page and then again as a
+// separate copy of the finished file. Here each page is appended to the output the
+// moment it is encoded, and the catalog and page tree are written last, once the
+// page count is known. The objects produced are the same ones buildPdf produces, so
+// readers see the same document either way.
+function createStreamingPdfWriter() {
+  const enc = new TextEncoder();
+  const parts = [];
+  const offsets = [0];
+  let length = 0;
+  let pages = 0;
+
+  const write = (data) => {
+    const bytes = typeof data === "string" ? enc.encode(data) : data;
+    parts.push(bytes);
+    length += bytes.length;
+  };
+  const beginObj = (num) => {
+    offsets[num] = length;
+    write(`${num} 0 obj\n`);
+  };
+
+  write("%PDF-1.4\n");
+  // Marker bytes go out raw; as characters they would be UTF-8 encoded into
+  // eight bytes that no longer read as the binary marker.
+  write(new Uint8Array([0x25, 0xe2, 0xe3, 0xcf, 0xd3, 0x0a]));
+
+  return {
+    // Pages fill their media box edge to edge, keeping the size the page had.
+    addPage(jpeg, w, h, pageWidth, pageHeight) {
+      const i = pages++;
+      const imgObj = 3 + i * 3;
+      const contentObj = 4 + i * 3;
+      const pageObj = 5 + i * 3;
+      const pageW = Number.isFinite(pageWidth) && pageWidth > 0 ? pageWidth : 595.28;
+      const pageH = Number.isFinite(pageHeight) && pageHeight > 0 ? pageHeight : 841.89;
+      const scale = Math.min(pageW / w, pageH / h);
+      const dw = w * scale, dh = h * scale;
+      const x = (pageW - dw) / 2, y = (pageH - dh) / 2;
+
+      beginObj(imgObj);
+      write(`<< /Type /XObject /Subtype /Image /Width ${w} /Height ${h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`);
+      write(jpeg);
+      write("\nendstream\nendobj\n");
+
+      const content = `q ${dw.toFixed(2)} 0 0 ${dh.toFixed(2)} ${x.toFixed(2)} ${y.toFixed(2)} cm /Im${i} Do Q`;
+      beginObj(contentObj);
+      write(`<< /Length ${content.length} >>\nstream\n${content}\nendstream\nendobj\n`);
+
+      beginObj(pageObj);
+      write(`<< /Type /Page /Parent 2 0 R /MediaBox [ 0 0 ${pageW.toFixed(2)} ${pageH.toFixed(2)} ] /Resources << /XObject << /Im${i} ${imgObj} 0 R >> >> /Contents ${contentObj} 0 R >>\nendobj\n`);
+    },
+
+    // Returns one contiguous Uint8Array. Each part is released as it is copied in,
+    // so the peak is the finished file rather than twice the finished file.
+    finish() {
+      const kids = [];
+      for (let i = 0; i < pages; i++) kids.push(`${5 + i * 3} 0 R`);
+      beginObj(1);
+      write("<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+      beginObj(2);
+      write(`<< /Type /Pages /Count ${pages} /Kids [ ${kids.join(" ")} ] >>\nendobj\n`);
+
+      const total = 3 + pages * 3;
+      const xrefStart = length;
+      let xref = `xref\n0 ${total}\n0000000000 65535 f \n`;
+      for (let i = 1; i < total; i++) xref += String(offsets[i]).padStart(10, "0") + " 00000 n \n";
+      xref += `trailer\n<< /Size ${total} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
+      write(xref);
+
+      const out = new Uint8Array(length);
+      let pos = 0;
+      for (let i = 0; i < parts.length; i++) {
+        out.set(parts[i], pos);
+        pos += parts[i].length;
+        parts[i] = null;
+      }
+      parts.length = 0;
+      return out;
+    },
+  };
+}
+
+// Re-render a PDF's pages as JPEGs and rebuild it smaller. The only way to make a
+// PDF meaningfully smaller in a browser is to throw away the vector page and keep
+// a picture of it, so this always costs something: the text is no longer
+// selectable or searchable, and links and form fields go with it. That is said out
+// loud in the returned warnings rather than left for the caller to remember.
+//
+//   bytes     Uint8Array | ArrayBuffer - the PDF to compress
+//   level     "small" | "medium" | "high", defaulting to "medium"
+//   onProgress (done, total, message) - called once per page, after it is encoded;
+//             the message is a ready-to-show status line, so a caller can ignore
+//             the counts and just write the third argument into its status area
+//
+// Returns a NEW Uint8Array, so the caller's own copy is untouched and the size of
+// the input is still available for the "N KB -> M KB, saved X" line.
+async function compressPdfBytes(bytes, options = {}) {
+  const opts = options || {};
+  const q = PDF_COMPRESS_LEVELS[opts.level] || PDF_COMPRESS_LEVELS.medium;
+  const onProgress = typeof opts.onProgress === "function" ? opts.onProgress : null;
+  const source = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || 0);
+  if (!source.length) throw new Error("This PDF is empty, so there is nothing to compress.");
+
+  const pdfjs = await loadPdfJs();
+  // pdf.js detaches the buffer it is handed, so it gets a copy of its own.
+  const doc = await pdfjs.getDocument({ data: source.slice() }).promise;
+  const out = createStreamingPdfWriter();
+  const total = doc.numPages;
+  let done = 0;
+  try {
+    for (let n = 1; n <= total; n++) {
+      const page = await doc.getPage(n);
+      const pageSize = page.getViewport({ scale: 1 });
+      const viewport = page.getViewport({ scale: q.scale });
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      try {
+        const ctx = canvas.getContext("2d", { alpha: false });
+        if (!ctx) throw new Error("This browser could not prepare a page for compression.");
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        out.addPage(
+          await encodeCanvasJpeg(canvas, q.jpeg),
+          canvas.width,
+          canvas.height,
+          pageSize.width,
+          pageSize.height
+        );
+      } finally {
+        page.cleanup();
+        canvas.width = 0;
+        canvas.height = 0;
+      }
+      done = n;
+      if (onProgress) onProgress(n, total, `Compressing — page ${n} of ${total}…`);
+    }
+  } finally {
+    await doc.destroy();
+  }
+  // A page-less document would come out as a file no reader can open.
+  if (!done) throw new Error("This PDF has no pages to compress.");
+
+  const result = out.finish();
+  const warnings = [
+    "Compressing redraws every page as an image, so the text in the copy is no longer selectable or searchable.",
+  ];
+  const delta = source.length - result.length;
+  if (delta < 0) {
+    warnings.push("Re-encoding made this PDF bigger: it was already well compressed, so the original is the better copy.");
+  } else if (delta === 0) {
+    warnings.push("The compressed copy came out the same size as the original.");
+  }
+  return { bytes: result, warnings };
+}
+
+// A page that ships merge.js declares its own compressPdfBytes, and a classic
+// script's later declaration wins, so this namespace is the handle that cannot be
+// overwritten by a page-specific helper.
+window.SwiftPdfCompress = { compressPdfBytes, levels: PDF_COMPRESS_LEVELS };

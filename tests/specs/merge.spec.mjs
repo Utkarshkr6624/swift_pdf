@@ -163,31 +163,156 @@ test(
   { ...MERGE, knownBug: "a merge failure is reported against the first file, not the one that failed" }
 );
 
-test(
-  "a Word file is refused with an honest reason instead of a broken merge",
-  async (t) => {
-    // A file can reach the strip with a PDF type and a Word name (a rename, or
-    // an operating system that reports the type loosely). The merge must notice
-    // the name and say plainly that this needs a server, not fail halfway.
-    await addFiles(t, "#fileInput", named("notes.pdf"));
-    await t.page.waitForFunction(() => document.querySelectorAll(".file-strip .chip").length === 1);
-    await t.page.evaluate(() => {
+// A real .docx, built in the browser with the site's own JSZip, so nothing here
+// is mocked and no binary fixture can rot. This function is stringified into the
+// page, so it cannot close over anything in this file. Passing `bytes` skips the
+// ZIP and produces a damaged file that still announces itself as a Word document.
+function docxBuilder() {
+  return async function (paragraphs, name, bytes) {
+    if (bytes) return new File([new Uint8Array(bytes)], name, { type: "application/pdf" });
+    const JSZip = await loadJsZip();
+    const zip = new JSZip();
+    zip.file(
+      "[Content_Types].xml",
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+        '<Default Extension="xml" ContentType="application/xml"/>' +
+        '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
+        "</Types>"
+    );
+    const body = paragraphs
+      .map((text) => '<w:p><w:r><w:t xml:space="preserve">' + text + "</w:t></w:r></w:p>")
+      .join("");
+    zip.file(
+      "word/document.xml",
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+        "<w:body>" + body + "</w:body></w:document>"
+    );
+    const out = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
+    return new File([out], name, {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
+  };
+}
+
+async function withDocxBuilder(t) {
+  await t.page.addScriptTag({ content: "window.buildDocx = (" + docxBuilder.toString() + ")();" });
+  await t.page.waitForFunction(() => typeof window.buildDocx === "function");
+}
+
+// Drop a file built in the page onto the dropzone, the way a person would, and
+// wait for the chip to land.
+async function dropBuiltFile(t, spec) {
+  await t.page.evaluate(
+    async (args) => {
+      const file = await window.buildDocx(args.paragraphs, args.name, args.bytes);
       const transfer = new DataTransfer();
-      transfer.items.add(new File([new Uint8Array([1, 2, 3])], "report.docx", { type: "application/pdf" }));
+      transfer.items.add(file);
       const drop = new DragEvent("drop", { bubbles: true, cancelable: true });
       Object.defineProperty(drop, "dataTransfer", { value: transfer });
       document.getElementById("dropzone").dispatchEvent(drop);
+    },
+    spec
+  );
+  await t.page.waitForFunction(
+    (count) => document.querySelectorAll(".file-strip .chip").length === count,
+    spec.expect
+  );
+}
+
+test(
+  "a Word file is converted in the browser, merged in place, and the result admits what it lost",
+  async (t) => {
+    await withDocxBuilder(t);
+    await addFiles(t, "#fileInput", named("notes.pdf"));
+    await t.page.waitForFunction(() => document.querySelectorAll(".file-strip .chip").length === 1);
+    await waitForThumbnails(t.page);
+
+    await dropBuiltFile(t, {
+      paragraphs: [
+        "Quarterly summary written in the browser.",
+        "Every word on this line has to survive the conversion.",
+      ],
+      name: "report.docx",
+      expect: 2,
     });
-    await t.page.waitForFunction(() => document.querySelectorAll(".file-strip .chip").length === 2);
 
-    await t.page.locator("#convertBtn").click();
-    await waitForStatus(t, /can't be converted in the browser/i, 10000);
+    await mergeNow(t);
 
-    const message = await statusText(t);
-    assert.match(message, /conversion server|on the roadmap/, "the reason should be honest about what is missing");
-    assert.match(message, /report\.docx|Remove it/, "the message should say which file to take out");
-    assert.equal(await t.page.locator("#resultBar").isVisible(), false, "nothing should have been produced");
-    assert.equal(await t.page.locator("#convertBtn").isEnabled(), true);
+    await step("the Word file lands in the merged document, in strip order", async () => {
+      const merged = await readMerged(t);
+      assert.equal(merged.numPages, 2, "one PDF page plus the page the document became");
+      const all = merged.text.join(" ");
+      assert.match(all, /notes page 1/);
+      assert.match(all, /Quarterly summary written in the browser\./);
+      assert.match(all, /Every word on this line has to survive the conversion\./);
+    });
+
+    await step("the result says the conversion lost things, in the engine's words", async () => {
+      const text = await readResultText(t);
+      assert.match(text, /Merged \d+ files?/);
+      assert.match(text, /1 converted to PDF first/);
+      const notes = await t.page.textContent("#mergeNotesBody");
+      assert.match(notes, /report\.docx/, "the disclosure should name the converted file");
+      assert.match(notes, /Fonts, colours, spacing and the original page layout are not reproduced/);
+      assert.match(notes, /footnotes/, "what is dropped has to be listed, not merely called lossy");
+    });
+
+    await step("the status line does not oversell it either", async () => {
+      const message = await statusText(t);
+      assert.match(message, /Word, PowerPoint or Excel file/);
+      assert.match(message, /converted here first/);
+    });
+
+    await step("nothing left the device to do it", () => {
+      assert.deepEqual(t.requestsWithBody(), [], "something was uploaded");
+      const cdn = t.requests.filter((r) => r.url.startsWith("https://cdnjs.cloudflare.com/"));
+      assert.ok(
+        cdn.every((r) => /pdf\.js|pdf-lib|jszip/.test(r.url)),
+        `unexpected CDN request: ${cdn.map((r) => r.url).join(", ")}`
+      );
+    });
+  },
+  MERGE
+);
+
+test(
+  "a Word file that cannot be opened stops the merge with a sentence that names it",
+  async (t) => {
+    await withDocxBuilder(t);
+    await addFiles(t, "#fileInput", named("notes.pdf"));
+    await t.page.waitForFunction(() => document.querySelectorAll(".file-strip .chip").length === 1);
+
+    await step("a file can reach the strip with a PDF type and a Word name", async () => {
+      // A ZIP signature and nothing behind it: the engine recognises it as an
+      // Office document, tries, and cannot read it.
+      await dropBuiltFile(t, { paragraphs: [], name: "report.docx", bytes: [0x50, 0x4b, 0x03, 0x04, 0, 0, 0, 0], expect: 2 });
+    });
+
+    await startMerge(t);
+    await waitForStatus(t, /could not be opened|could not be converted/, 30000);
+
+    await step("the message is the engine's own sentence, not a parser error", async () => {
+      const message = await statusText(t);
+      assert.match(message, /^report\.docx/, `the message should open with the file name: ${message}`);
+      assert.match(message, /could not be opened|could not be converted/);
+      assert.doesNotMatch(message, /InvalidPDFException|at Object\.|PDFDocument/, "a parser error leaked into the message");
+      assert.equal(await t.page.locator("#resultBar").isVisible(), false, "nothing should have been produced");
+      assert.equal(await t.page.locator("#convertBtn").isEnabled(), true, "a retry has to be possible");
+    });
+
+    await step("an older .doc is named and refused before any work starts", async () => {
+      await dropBuiltFile(t, { paragraphs: [], name: "old.doc", bytes: [0x50, 0x4b, 0x03, 0x04], expect: 3 });
+      await t.page.locator("#convertBtn").click();
+      await waitForStatus(t, /old\.doc/, 10000);
+      const message = await statusText(t);
+      assert.match(message, /older Word, PowerPoint or Excel file/i);
+      assert.match(message, /\.docx/, "the newer format it does open should be named");
+      assert.equal(await t.page.locator("#resultBar").isVisible(), false);
+      assert.equal(await t.page.locator("#convertBtn").isEnabled(), true);
+    });
   },
   MERGE
 );
@@ -217,7 +342,7 @@ test(
     const merged = await readMerged(t);
     assert.equal(merged.numPages, 3, "compression must not drop or duplicate pages");
     const text = await readResultText(t);
-    assert.match(text, /Merged and compressed\./);
+    assert.match(text, /Merged 1 PDF/);
     assert.match(text, /Smallest/, "the chosen level should be named");
 
     await step("the page says the text is no longer selectable, because it is not", async () => {

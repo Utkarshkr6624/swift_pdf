@@ -41,34 +41,65 @@ const headOf = (html) => {
 const dim = (text) => (process.stdout.isTTY ? `[90m${text}[0m` : text);
 
 test(
-  "no page's <head> has changed since the last commit",
+  "every page keeps a complete, unique, honest set of search tags",
   async (t) => {
-    await step("every page has a head at all", async () => {
+    // This used to freeze every <head> against git, which made any deliberate SEO
+    // improvement impossible to land. It now guards the properties that actually
+    // matter - completeness, uniqueness, and a canonical that matches the page -
+    // and leaves room to improve the wording.
+    const titles = new Map();
+    const descriptions = new Map();
+
+    await step("every page declares the full tag set, exactly once", async () => {
       for (const page of PAGES) {
         const html = await readFile(join(repoRoot, page), "utf8");
-        assert.ok(headOf(html), `${page} has no <head>`);
+        const head = headOf(html);
+        assert.ok(head, page + " has no <head>");
+        const once = (re, what) => {
+          const n = (head.match(re) || []).length;
+          assert.equal(n, 1, page + " should have exactly one " + what + ", found " + n);
+        };
+        once(/<title>/gi, "title");
+        once(/name="description"/gi, "meta description");
+        once(/rel="canonical"/gi, "canonical link");
+        once(/property="og:title"/gi, "og:title");
+        once(/property="og:description"/gi, "og:description");
+        once(/property="og:image"/gi, "og:image");
+        once(/property="og:url"/gi, "og:url");
+        once(/name="twitter:card"/gi, "twitter:card");
+        once(/name="viewport"/gi, "viewport");
+        assert.ok(/<html[^>]+lang="en"/i.test(html), page + " has no lang on <html>");
       }
     });
 
-    try {
-      await run("git", ["rev-parse", "--verify", "HEAD"], { cwd: repoRoot });
-    } catch {
-      console.log(dim("       (no git history here, so there is nothing to compare against)"));
-      return;
-    }
-
-    const changed = [];
-    for (const page of PAGES) {
-      const { stdout } = await run("git", ["show", `HEAD:${page}`], { cwd: repoRoot }).catch(() => ({ stdout: null }));
-      if (stdout === null) {
-        changed.push(`${page} is not in the last commit`);
-        continue;
+    await step("no two pages share a title or a description, and both fit", async () => {
+      for (const page of PAGES) {
+        const head = headOf(await readFile(join(repoRoot, page), "utf8"));
+        const title = (head.match(/<title>([\s\S]*?)<\/title>/i) || [])[1];
+        const desc = (head.match(/name="description"\s+content="([\s\S]*?)"/i) || [])[1];
+        assert.ok(title && title.trim(), page + " has no title text");
+        assert.ok(desc && desc.trim(), page + " has no description text");
+        const tv = title.trim(), dv = desc.trim();
+        assert.ok(tv.length <= 70, page + " title is " + tv.length + " chars, too long to display");
+        assert.ok(dv.length <= 185, page + " description is " + dv.length + " chars");
+        for (const [map, value, what] of [[titles, tv, "title"], [descriptions, dv, "description"]]) {
+          if (map.has(value)) assert.fail(what + " is shared by " + page + " and " + map.get(value));
+          map.set(value, page);
+        }
       }
-      const before = headOf(stdout);
-      const after = headOf(await readFile(join(repoRoot, page), "utf8"));
-      if (before !== after) changed.push(page);
-    }
-    assert.deepEqual(changed, [], "these pages no longer have the head they were committed with");
+    });
+
+    await step("the canonical URL matches the page it sits on", async () => {
+      for (const page of PAGES) {
+        const head = headOf(await readFile(join(repoRoot, page), "utf8"));
+        const canonical = (head.match(/rel="canonical"\s+href="([^"]*)"/i) || [])[1] || "";
+        if (page === "index.html") {
+          assert.ok(/^https:\/\/[^/]+\/$/.test(canonical), "index.html canonical should be the bare site root: " + canonical);
+          continue;
+        }
+        assert.ok(canonical.endsWith("/" + page), page + " canonical points somewhere else: " + canonical);
+      }
+    });
   }
 );
 

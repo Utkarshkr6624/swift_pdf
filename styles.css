@@ -561,6 +561,26 @@ a { color: inherit; text-decoration: none; }
 /* ---------- Merge: optional compression of the merged file ----------
    Scoped to .merge-compress, which only exists on the merge page, so nothing
    here can reach the standalone compress tool or any other page. */
+/* The merged result stays one sentence; the detail opens on demand. */
+.merge-notes {
+  flex: 1 1 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 12px;
+  background: var(--card);
+  color: var(--ink-soft);
+  font-size: .84rem;
+}
+.merge-notes[hidden] { display: none; }
+.merge-notes > summary { cursor: pointer; color: var(--ink); font-weight: 600; list-style: none; }
+.merge-notes > summary::-webkit-details-marker { display: none; }
+.merge-notes > summary::before { content: "B8"; display: inline-block; margin-right: 8px; transition: transform .15s ease; }
+.merge-notes[open] > summary::before { transform: rotate(90deg); }
+.merge-notes-body { padding: 10px 0 2px 20px; }
+.merge-notes-label { margin: 8px 0 4px; font-weight: 600; color: var(--ink); }
+.merge-notes-body ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; line-height: 1.55; }
+.merge-notes-body li { overflow-wrap: anywhere; }
+
 .merge-compress {
   flex: 1 1 100%;
   display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap;
@@ -937,10 +957,6 @@ footer a:hover { color: var(--blue); }
   --radius: 12px;
   --font-display: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --hero-bg: #172d4a;
-  --hero-text: #f4f8ff;
-  --hero-accent: #a8ccff;
-  --footer-bg: #172d4a;
 }
 [data-theme="dark"] {
   color-scheme: dark;
@@ -964,10 +980,6 @@ footer a:hover { color: var(--blue); }
   --shadow-color: 0, 0, 0;
   --button-text: #17200e;
   --glyph-hover-text: #17200e;
-  --hero-bg: #0c1014;
-  --hero-text: #f1f2ef;
-  --hero-accent: #c7f36b;
-  --footer-bg: #0c1014;
 }
 
 /* Sky-to-cobalt SwiftPDF mark in light mode; lime mark at night. */
@@ -1501,10 +1513,6 @@ body { font-size: 1rem; line-height: 1.7; }
   padding: 9px 11px; border: 1px dashed var(--line); border-radius: 9px;
   background: var(--card); color: var(--ink-soft); font-size: .84rem; line-height: 1.45;
 }
-.ed-selected strong {
-  color: var(--ink); font-weight: 600;
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
-}
 
 .ed-field { color: var(--ink-soft); font-size: .84rem; font-weight: 600; }
 .ed-field > label { line-height: 1.4; }
@@ -1636,7 +1644,6 @@ body { font-size: 1rem; line-height: 1.7; }
   .ed-panel > .ed-field:nth-child(2),
   .ed-panel > .ed-field:nth-child(7) { grid-column: 1 / -1; }
   .ed-selected { padding: 8px 10px; }
-  .ed-selected strong { -webkit-line-clamp: 2; }
   /* rows=4 gives a ~120px textarea that dominates a phone panel; an explicit
      height wins over the attribute and resize: vertical still lets a user grow it. */
   .ed-field textarea.name-input { height: 56px; min-height: 56px; }
@@ -1740,3 +1747,40 @@ body { font-size: 1rem; line-height: 1.7; }
    is to park it flush against the edge of the scroller - where the
    workspace header covers it and the card looks like it lost focus. */
 .ws-body, .file-strip, .page-organizer-grid { scroll-padding: 14px 10px; }
+
+/* ---------- Converter: source and target pickers ----------
+   Scoped to .format-picker, which only exists on the converter page, so the
+   two selects cannot change the look of any other tool. Every colour is a
+   token, because the site is themed light and dark. */
+.format-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px 16px;
+  margin: 20px 0 12px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+.format-field { display: grid; gap: 6px; min-width: 0; }
+.format-field label { color: var(--ink-soft); font-size: .82rem; font-weight: 600; }
+.format-field select.name-input { width: 100%; min-width: 0; height: 46px; margin: 0; cursor: pointer; }
+.format-field select.name-input:disabled { opacity: .6; cursor: progress; }
+
+.format-note { color: var(--ink-soft); font-size: .9rem; line-height: 1.55; }
+.format-note.is-error { color: var(--red); font-weight: 600; }
+
+.conv-list { margin-top: 34px; }
+.conv-list h2 { font-size: 1rem; }
+.conv-list-lead { color: var(--ink-soft); font-size: .9rem; margin-top: 8px; max-width: 620px; }
+.conv-list ul { margin-top: 10px; padding-left: 20px; display: grid; gap: 5px; color: var(--ink-soft); font-size: .9rem; }
+.conv-list b { color: var(--ink); }
+
+@media (max-width: 520px) {
+  .format-picker { grid-template-columns: minmax(0, 1fr); padding: 14px; }
+}
+
+/* A finger needs a target, and a 46px select is not quite one. */
+@media (pointer: coarse) {
+  .format-field select.name-input { height: 50px; font-size: 1rem; }
+}

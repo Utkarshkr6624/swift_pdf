@@ -68,7 +68,8 @@
       {"@type": "Question", "name": "Is SwiftPDF free?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. SwiftPDF is free to use and does not require an account. The number and size of files a browser can process depend on the device's available memory."}},
       {"@type": "Question", "name": "How do I convert JPG images to one PDF?", "acceptedAnswer": {"@type": "Answer", "text": "Open the Image to PDF tool, add browser-supported image files or capture photos, arrange them in the edit view, and click Convert to PDF. The whole process takes place on your device."}},
       {"@type": "Question", "name": "Can I take a photo directly for my PDF?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Open Image to PDF and choose Take a photo. Each shot opens in a review box where you can crop or rotate it, add it and keep shooting, or add it and close the camera. Live camera access requires a secure site connection such as HTTPS or localhost."}},
-      {"@type": "Question", "name": "Can I merge Word or PowerPoint files?", "acceptedAnswer": {"@type": "Answer", "text": "Not yet. Export them to PDF first, then merge them with the Merge PDF tool."}}
+      {"@type": "Question", "name": "Can I merge Word or PowerPoint files?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Merge PDF takes PDFs together with Word, Excel and PowerPoint files in the order you choose, converting the Office files to PDF in your browser first. Nothing is uploaded."}},
+      {"@type": "Question", "name": "Does the file converter keep my formatting?", "acceptedAnswer": {"@type": "Answer", "text": "No. It copies the words, headings, tables and pictures into a new file in reading order, set in a standard font. The original fonts, colours, columns, headers, footnotes and text boxes are left out, and characters outside a standard PDF font come out as a question mark. Export the file as a PDF from Word, Excel or PowerPoint instead if you need the original layout."}}
       ,{"@type": "Question", "name": "Can I reorder or extract pages from a PDF?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Use Organize PDF Pages to reorder, rotate, remove, split, or extract pages in your browser."}}
       ,{"@type": "Question", "name": "Can I add page numbers to a PDF?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Use Add Page Numbers to choose the starting number, size, and position."}}
       ,{"@type": "Question", "name": "Can I change a PDF to dark mode or custom colors?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Change PDF Theme offers dark, sepia, midnight blue, sage, and custom primary, secondary, and text colors. Preview the pages before downloading. The pages are saved as images, so text is no longer selectable."}}
@@ -126,7 +127,7 @@
         <aside class="hero-facts" aria-label="What to expect from SwiftPDF">
           <div class="hero-fact"><span class="hero-fact-number">01</span><p><strong>Files stay local</strong><small>Your documents stay on your device.</small></p></div>
           <div class="hero-fact"><span class="hero-fact-number">02</span><p><strong>No account needed</strong><small>Open a tool and get straight to work.</small></p></div>
-          <div class="hero-fact"><span class="hero-fact-number">10</span><p><strong>Useful PDF tools</strong><small>Convert, merge, organize, and more.</small></p></div>
+          <div class="hero-fact"><span class="hero-fact-number">03</span><p><strong>Useful PDF tools</strong><small id="toolCountNote">Eleven of them, from convert to merge.</small></p></div>
         </aside>
       </div>
     </section>
@@ -140,6 +141,13 @@
             <span>
               <h3>Image to PDF</h3>
               <p>Combine supported image files or capture photos, then crop and arrange them into a PDF.</p>
+            </span>
+          </a>
+          <a class="tool-row" href="word-to-pdf.html">
+            <span class="tool-glyph" aria-hidden="true">⇄</span>
+            <span>
+              <h3>File Converter</h3>
+              <p>Convert between PDF, Word, Excel and PowerPoint on your device — all twelve directions. You get the words, headings, tables and pictures — not the original fonts, colours or layout.</p>
             </span>
           </a>
           <a class="tool-row" href="pdf-to-image.html">
@@ -223,7 +231,11 @@
           </details>
           <details class="faq-item">
             <summary>Can I merge Word or PowerPoint files?</summary>
-            <p>Not yet — converting Office documents needs a server. Export them to PDF first (File → Save as PDF in Word or PowerPoint), then merge them here.</p>
+            <p>Yes. Merge PDF takes PDFs together with Word, Excel and PowerPoint files in the order you choose, converting the Office files to PDF in your browser first. Nothing is uploaded.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Does the file converter keep my formatting?</summary>
+            <p>No. It copies the words, headings, tables and pictures into a new PDF in reading order, set in a standard font. Word’s own fonts, colours, columns, headers, footnotes and text boxes are left out, and characters outside a standard PDF font — Hindi, Chinese, emoji — are replaced with “?”. Going the other way, a PDF’s own fonts, colours and pictures are left out and the headings and tables are worked out from where the words sit on the page. Export the file as a PDF from Word instead if you need the original layout.</p>
           </details>
           <details class="faq-item">
             <summary>Can I reorder or extract pages from a PDF?</summary>
@@ -268,6 +280,22 @@
       <span><a href="privacy.html">Privacy</a> &nbsp;·&nbsp; <a href="terms.html">Terms</a> &nbsp;·&nbsp; <a href="contact.html">Contact</a> &nbsp;·&nbsp; <a href="mailto:utkarsh6624@gmail.com">utkarsh6624@gmail.com</a></span>
     </div>
   </footer>
+  <script>
+    // The number beside this fact is the third in a sequence, so the tool count
+    // is stated here instead, counted from the page itself, which keeps the
+    // sentence true whenever a tool is added or removed.
+    (function () {
+      var note = document.getElementById("toolCountNote");
+      if (!note) return;
+      var count = document.querySelectorAll(".tool-row").length;
+      if (!count) return;
+      var words = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight",
+        "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen",
+        "Seventeen", "Eighteen", "Nineteen", "Twenty"];
+      var said = count <= 20 ? words[count] : String(count);
+      note.textContent = said + " of them, from convert to merge.";
+    })();
+  </script>
   <script>
     document.querySelectorAll(".faq-item").forEach((item) => {
       const summary = item.querySelector("summary");
