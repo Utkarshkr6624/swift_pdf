@@ -69,6 +69,232 @@
 
   const KINDS = ["docx", "pptx", "xlsx"];
 
+  /* ---------- math and symbol glyphs drawn as vectors ----------
+   *
+   * The standard PDF fonts are WinAnsi: Latin-1 plus a handful of symbols, and
+   * nothing above 0xff. A radical, a summation sign or a Greek letter is not in
+   * that set, so before this the only outcomes were "?" or the character
+   * vanishing - and equations in a Word document are nothing but those
+   * characters. Embedding a Unicode font would need fontkit and a megabyte of
+   * font data on a page that otherwise has no dependencies at all, so the glyphs
+   * that carry real meaning are drawn as strokes instead, from the path data
+   * below.
+   *
+   * Each glyph is drawn in its own em box with the baseline at y=0 and the top of
+   * a capital letter at y=0.72, and is stroked at the weight of the stem of the
+   * text around it, which is measured rather than guessed. `a` is how far the
+   * cursor moves, and it is wide enough to hold the ink the glyph puts down.
+   */
+  const MATH_GLYPHS = {
+    "√": { a: 0.74, d: "M 0 0.24 L 0.14 0.05 L 0.29 0.4 L 0.48 0.72 L 0.74 0.72" },
+    "∛": { a: 0.8, d: "M 0 0.24 L 0.14 0.05 L 0.29 0.4 L 0.48 0.72 L 0.8 0.72 M 0.6 0.72 L 0.68 0.2" },
+    "∜": { a: 0.86, d: "M 0 0.24 L 0.14 0.05 L 0.29 0.4 L 0.48 0.72 L 0.86 0.72 M 0.6 0.72 L 0.68 0.2 M 0.72 0.72 L 0.8 0.2" },
+
+    "∞": { a: 0.72, d: "M 0.66 0.36 C 0.66 0.45 0.6 0.6 0.56 0.63 C 0.52 0.66 0.47 0.6 0.43 0.55 C 0.39 0.51 0.37 0.42 0.34 0.36 C 0.31 0.3 0.29 0.22 0.25 0.17 C 0.21 0.13 0.16 0.06 0.12 0.09 C 0.08 0.12 0.02 0.27 0.02 0.36 C 0.02 0.45 0.08 0.6 0.12 0.63 C 0.16 0.66 0.21 0.6 0.25 0.55 C 0.29 0.51 0.31 0.42 0.34 0.36 C 0.37 0.3 0.39 0.22 0.43 0.17 C 0.47 0.13 0.52 0.06 0.56 0.09 C 0.6 0.12 0.66 0.27 0.66 0.36 Z" },
+
+    "≤": { w: 0.095, a: 0.6, d: "M 0.56 0.68 L 0.08 0.46 L 0.56 0.24 M 0.08 0.15 L 0.56 0.15 M 0.08 0.02 L 0.56 0.02" },
+    "≥": { w: 0.095, a: 0.6, d: "M 0.04 0.68 L 0.52 0.46 L 0.04 0.24 M 0.04 0.15 L 0.52 0.15 M 0.04 0.02 L 0.52 0.02" },
+    "≠": { w: 0.095, a: 0.6, d: "M 0.08 0.42 L 0.54 0.42 M 0.08 0.2 L 0.54 0.2 M 0.5 0.72 L 0.12 0.02" },
+    "≡": { w: 0.095, a: 0.6, d: "M 0.08 0.6 L 0.54 0.6 M 0.08 0.36 L 0.54 0.36 M 0.08 0.12 L 0.54 0.12" },
+    "≈": { w: 0.095, a: 0.62, d: "M 0.06 0.46 C 0.15 0.6 0.23 0.32 0.32 0.46 C 0.41 0.6 0.49 0.32 0.58 0.46 M 0.06 0.2 C 0.15 0.34 0.23 0.06 0.32 0.2 C 0.41 0.34 0.49 0.06 0.58 0.2" },
+    "≅": { w: 0.095, a: 0.62, d: "M 0.06 0.58 C 0.15 0.72 0.23 0.44 0.32 0.58 C 0.41 0.72 0.49 0.44 0.58 0.58 M 0.08 0.36 L 0.54 0.36 M 0.08 0.16 L 0.54 0.16 M 0.5 0.06 L 0.12 -0.06" },
+    "∼": { w: 0.095, a: 0.62, d: "M 0.05 0.4 C 0.15 0.56 0.22 0.24 0.32 0.4 C 0.42 0.56 0.49 0.24 0.59 0.4" },
+    "∝": { w: 0.095, a: 0.7, d: "M 0.66 0.36 C 0.54 0.16 0.3 0.14 0.2 0.3 C 0.11 0.44 0.24 0.58 0.38 0.5 M 0.38 0.5 C 0.52 0.42 0.48 0.2 0.3 0.2 C 0.11 0.2 0.09 0.5 0.24 0.5 C 0.4 0.5 0.58 0.36 0.66 0.36" },
+    "≪": { w: 0.095, a: 0.58, d: "M 0.5 0.6 L 0.28 0.36 L 0.5 0.12 M 0.28 0.6 L 0.06 0.36 L 0.28 0.12" },
+    "≫": { w: 0.095, a: 0.58, d: "M 0.06 0.6 L 0.28 0.36 L 0.06 0.12 M 0.28 0.6 L 0.5 0.36 L 0.28 0.12" },
+
+    "∑": { a: 0.66, d: "M 0.64 0.7 L 0.08 0.7 L 0.4 0.36 L 0.08 0.02 L 0.64 0.02" },
+    "∏": { a: 0.64, d: "M 0.04 0.68 L 0.6 0.68 M 0.1 0.68 L 0.1 0.02 M 0.54 0.68 L 0.54 0.02" },
+    "∐": { a: 0.64, d: "M 0.04 0.02 L 0.6 0.02 M 0.1 0.02 L 0.1 0.68 M 0.54 0.02 L 0.54 0.68" },
+    "∫": { a: 0.6, d: "M 0.52 0.74 C 0.4 0.8 0.31 0.75 0.27 0.64 C 0.24 0.56 0.23 0.46 0.23 0.36 C 0.23 0.24 0.27 0.1 0.17 0.02 C 0.14 0 0.11 0.01 0.09 0.04" },
+    "∬": { a: 1.2, d: "M 0.52 0.74 C 0.4 0.8 0.31 0.75 0.27 0.64 C 0.24 0.56 0.23 0.46 0.23 0.36 C 0.23 0.24 0.27 0.1 0.17 0.02 C 0.14 0 0.11 0.01 0.09 0.04 M 1.1 0.74 C 0.98 0.8 0.89 0.75 0.85 0.64 C 0.82 0.56 0.81 0.46 0.81 0.36 C 0.81 0.24 0.85 0.1 0.75 0.02 C 0.72 0 0.69 0.01 0.67 0.04" },
+    "⋃": { a: 0.64, d: "M 0.06 0.7 L 0.06 0.24 C 0.06 0.06 0.58 0.06 0.58 0.24 L 0.58 0.7" },
+    "⋂": { a: 0.64, d: "M 0.06 0.02 L 0.06 0.48 C 0.06 0.66 0.58 0.66 0.58 0.48 L 0.58 0.02" },
+    "⋁": { a: 0.6, d: "M 0.05 0.7 L 0.3 0.04 L 0.55 0.7" },
+    "⋀": { a: 0.6, d: "M 0.05 0.04 L 0.3 0.7 L 0.55 0.04" },
+    "∅": { w: 0.095, a: 0.66, d: "M 0.33 0.66 C 0.14 0.66 0.03 0.53 0.03 0.36 C 0.03 0.19 0.14 0.06 0.33 0.06 C 0.52 0.06 0.63 0.19 0.63 0.36 C 0.63 0.53 0.52 0.66 0.33 0.66 M 0.58 0.74 L 0.1 0.0" },
+    "∂": { w: 0.095, a: 0.62, d: "M 0.3 0.05 C 0.41 0.05 0.5 0.14 0.5 0.26 C 0.5 0.38 0.41 0.47 0.3 0.47 C 0.19 0.47 0.1 0.38 0.1 0.26 C 0.1 0.14 0.19 0.05 0.3 0.05 Z M 0.07 0.6 C 0.13 0.71 0.31 0.74 0.43 0.66 C 0.48 0.62 0.49 0.48 0.44 0.4" },
+    "∇": { w: 0.095, a: 0.66, d: "M 0.03 0.7 L 0.63 0.7 L 0.33 0.02" },
+    "∠": { a: 0.6, d: "M 0.04 0.66 L 0.54 0.66 M 0.04 0.66 L 0.54 0.04" },
+    "⊥": { a: 0.6, d: "M 0.06 0.02 L 0.54 0.02 M 0.3 0.02 L 0.3 0.66" },
+    "∥": { a: 0.34, d: "M 0.12 0.68 L 0.02 0.02 M 0.3 0.68 L 0.2 0.02" },
+
+    "∈": { w: 0.095, a: 0.62, d: "M 0.58 0.58 C 0.32 0.7 0.1 0.56 0.1 0.36 C 0.1 0.16 0.32 0.02 0.58 0.14 M 0.14 0.36 L 0.52 0.36" },
+    "∉": { w: 0.095, a: 0.68, d: "M 0.58 0.58 C 0.32 0.7 0.1 0.56 0.1 0.36 C 0.1 0.16 0.32 0.02 0.58 0.14 M 0.14 0.36 L 0.52 0.36 M 0.62 0.72 L 0.08 0.02" },
+    "∋": { w: 0.095, a: 0.62, d: "M 0.06 0.58 C 0.32 0.7 0.54 0.56 0.54 0.36 C 0.54 0.16 0.32 0.02 0.06 0.14 M 0.1 0.36 L 0.48 0.36" },
+    "∌": { w: 0.095, a: 0.68, d: "M 0.06 0.58 C 0.32 0.7 0.54 0.56 0.54 0.36 C 0.54 0.16 0.32 0.02 0.06 0.14 M 0.1 0.36 L 0.48 0.36 M 0.6 0.72 L 0.06 0.02" },
+    "∍": { a: 0.68, w: 0.095, d: "M 0.06 0.58 C 0.32 0.7 0.54 0.56 0.54 0.36 C 0.54 0.16 0.32 0.02 0.06 0.14 M 0.1 0.36 L 0.48 0.36 M 0.6 0.72 L 0.06 0.02" },
+    "⊂": { w: 0.095, a: 0.62, d: "M 0.58 0.6 C 0.32 0.7 0.14 0.56 0.14 0.36 C 0.14 0.16 0.32 0.04 0.58 0.12" },
+    "⊃": { w: 0.095, a: 0.62, d: "M 0.06 0.6 C 0.32 0.7 0.5 0.56 0.5 0.36 C 0.5 0.16 0.32 0.04 0.06 0.12" },
+    "⊆": { w: 0.095, a: 0.62, d: "M 0.58 0.66 C 0.32 0.76 0.14 0.62 0.14 0.44 C 0.14 0.26 0.32 0.14 0.58 0.22 M 0.14 0.02 L 0.58 0.02" },
+    "⊇": { w: 0.095, a: 0.62, d: "M 0.06 0.66 C 0.32 0.76 0.5 0.62 0.5 0.44 C 0.5 0.26 0.32 0.14 0.06 0.22 M 0.06 0.02 L 0.5 0.02" },
+    "∪": { w: 0.095, a: 0.6, d: "M 0.08 0.62 L 0.08 0.24 C 0.08 0.06 0.54 0.06 0.54 0.24 L 0.54 0.62" },
+    "∩": { w: 0.095, a: 0.6, d: "M 0.08 0.04 L 0.08 0.42 C 0.08 0.6 0.54 0.6 0.54 0.42 L 0.54 0.04" },
+    "∀": { w: 0.095, a: 0.66, d: "M 0.04 0.04 L 0.33 0.7 L 0.62 0.04 M 0.16 0.26 L 0.5 0.26" },
+    "∃": { w: 0.095, a: 0.62, d: "M 0.58 0.66 L 0.08 0.66 L 0.08 0.04 L 0.58 0.04 M 0.08 0.36 L 0.46 0.36" },
+    "∄": { w: 0.095, a: 0.68, d: "M 0.58 0.66 L 0.08 0.66 L 0.08 0.04 L 0.58 0.04 M 0.08 0.36 L 0.46 0.36 M 0.6 0.72 L 0.06 0.02" },
+    "∴": { a: 0.6, w: 0.07, d: "M 0.3 0.53 L 0.32 0.55 L 0.3 0.57 L 0.28 0.55 Z M 0.215 0.2 L 0.235 0.22 L 0.215 0.24 L 0.195 0.22 Z M 0.385 0.2 L 0.405 0.22 L 0.385 0.24 L 0.365 0.22 Z" },
+    "∵": { a: 0.6, w: 0.07, d: "M 0.215 0.56 L 0.235 0.58 L 0.215 0.6 L 0.195 0.58 Z M 0.385 0.56 L 0.405 0.58 L 0.385 0.6 L 0.365 0.58 Z M 0.3 0.2 L 0.32 0.22 L 0.3 0.24 L 0.28 0.22 Z" },
+
+    "→": { a: 0.72, d: "M 0.02 0.32 L 0.7 0.32 M 0.48 0.54 L 0.7 0.32 L 0.48 0.1" },
+    "←": { a: 0.72, d: "M 0.02 0.32 L 0.7 0.32 M 0.24 0.54 L 0.02 0.32 L 0.24 0.1" },
+    "↔": { a: 0.72, d: "M 0.02 0.32 L 0.7 0.32 M 0.24 0.54 L 0.02 0.32 L 0.24 0.1 M 0.48 0.54 L 0.7 0.32 L 0.48 0.1" },
+    "↑": { a: 0.6, d: "M 0.3 0.02 L 0.3 0.68 M 0.08 0.46 L 0.3 0.68 L 0.52 0.46" },
+    "↓": { a: 0.6, d: "M 0.3 0.68 L 0.3 0.02 M 0.08 0.24 L 0.3 0.02 L 0.52 0.24" },
+    "⇒": { a: 0.76, d: "M 0.02 0.44 L 0.72 0.44 M 0.02 0.2 L 0.72 0.2 M 0.5 0.66 L 0.72 0.44 L 0.5 0.22" },
+    "⇐": { a: 0.76, d: "M 0.04 0.44 L 0.74 0.44 M 0.04 0.2 L 0.74 0.2 M 0.26 0.66 L 0.04 0.44 L 0.26 0.22" },
+    "⇔": { a: 0.76, d: "M 0.02 0.44 L 0.74 0.44 M 0.02 0.2 L 0.74 0.2 M 0.28 0.66 L 0.06 0.44 L 0.28 0.22 M 0.5 0.66 L 0.72 0.44 L 0.5 0.22" },
+    "↦": { a: 0.7, d: "M 0.02 0.34 L 0.62 0.34 M 0.42 0.54 L 0.62 0.34 L 0.42 0.14 M 0.58 0.62 L 0.58 0.06" },
+
+    "α": { a: 0.66, d: "M 0.66 0.1 C 0.6 0.04 0.54 0.06 0.53 0.14 C 0.48 0.06 0.4 0.02 0.3 0.04 C 0.12 0.08 0.04 0.28 0.1 0.44 C 0.16 0.6 0.34 0.64 0.46 0.54 C 0.55 0.46 0.58 0.3 0.58 0.16 L 0.58 0.5 C 0.58 0.6 0.62 0.62 0.66 0.58" },
+    "β": { a: 0.6, d: "M 0.1 -0.06 L 0.1 0.44 C 0.1 0.6 0.2 0.67 0.32 0.64 C 0.46 0.61 0.53 0.5 0.5 0.42 C 0.47 0.35 0.37 0.32 0.28 0.35 C 0.37 0.26 0.5 0.24 0.56 0.16 C 0.62 0.08 0.58 -0.04 0.46 -0.06" },
+    "γ": { a: 0.54, d: "M 0.02 0.6 L 0.16 0.24 C 0.24 0.04 0.36 0.02 0.42 0.12 C 0.48 0.24 0.42 0.42 0.4 0.6 M 0.4 0.6 C 0.44 0.3 0.48 0.08 0.54 0.0" },
+    "δ": { a: 0.58, d: "M 0.58 0.68 C 0.46 0.72 0.32 0.66 0.28 0.54 C 0.16 0.56 0.06 0.44 0.08 0.3 C 0.1 0.14 0.24 0.04 0.38 0.08 C 0.5 0.12 0.52 0.28 0.44 0.4 C 0.38 0.5 0.32 0.54 0.28 0.54" },
+    "ε": { a: 0.48, d: "M 0.42 0.6 C 0.24 0.68 0.08 0.58 0.1 0.42 C 0.12 0.3 0.28 0.3 0.3 0.4 C 0.32 0.5 0.14 0.52 0.12 0.4 C 0.1 0.22 0.24 0.02 0.42 0.06" },
+    "ζ": { a: 0.48, d: "M 0.42 0.7 C 0.2 0.74 0.22 0.56 0.34 0.5 C 0.46 0.44 0.44 0.3 0.3 0.26 C 0.16 0.22 0.14 0.34 0.24 0.38 C 0.36 0.42 0.34 0.16 0.16 0.06" },
+    "η": { a: 0.56, d: "M 0.04 0.62 L 0.04 0.3 C 0.04 0.1 0.16 -0.02 0.3 0.04 C 0.44 0.1 0.5 0.28 0.5 0.44 L 0.5 0.62" },
+    "θ": { a: 0.56, d: "M 0.28 0.68 C 0.46 0.68 0.56 0.54 0.56 0.36 C 0.56 0.18 0.46 0.04 0.28 0.04 C 0.1 0.04 0.0 0.18 0.0 0.36 C 0.0 0.54 0.1 0.68 0.28 0.68 M 0.02 0.36 L 0.54 0.36" },
+    "ϑ": { a: 0.56, d: "M 0.28 0.68 C 0.46 0.68 0.56 0.54 0.56 0.36 C 0.56 0.18 0.46 0.04 0.28 0.04 C 0.1 0.04 0.0 0.18 0.0 0.36 C 0.0 0.54 0.1 0.68 0.28 0.68 M 0.02 0.36 L 0.54 0.36" },
+    "ι": { a: 0.3, d: "M 0.12 0.62 L 0.12 0.2 C 0.12 0.06 0.22 -0.02 0.3 0.02" },
+    "κ": { a: 0.54, d: "M 0.04 0.6 L 0.04 0.0 M 0.04 0.34 L 0.46 0.62 M 0.2 0.44 L 0.5 0.0" },
+    "λ": { a: 0.56, d: "M 0.02 0.62 L 0.24 0.3 M 0.24 0.3 L 0.5 0.62 M 0.24 0.3 L 0.12 0.0" },
+    "μ": { a: 0.58, d: "M 0.06 0.62 L 0.06 0.18 C 0.06 0.04 0.18 -0.02 0.3 0.04 C 0.42 0.1 0.5 0.24 0.5 0.4 L 0.5 -0.04" },
+    "ν": { a: 0.52, d: "M 0.04 0.6 L 0.26 0.06 L 0.48 0.6" },
+    "ξ": { a: 0.46, d: "M 0.4 0.7 C 0.18 0.74 0.2 0.58 0.32 0.52 C 0.44 0.46 0.42 0.34 0.28 0.3 C 0.14 0.26 0.12 0.36 0.22 0.4 C 0.34 0.44 0.3 0.2 0.14 0.1 C 0.04 0.04 0.08 0.0 0.18 0.0" },
+    "ο": { a: 0.54, d: "M 0.27 0.6 C 0.44 0.6 0.54 0.48 0.54 0.32 C 0.54 0.16 0.44 0.04 0.27 0.04 C 0.1 0.04 0.0 0.16 0.0 0.32 C 0.0 0.48 0.1 0.6 0.27 0.6 Z" },
+    "π": { a: 0.62, d: "M 0.04 0.6 L 0.6 0.6 M 0.2 0.6 L 0.14 0.04 M 0.44 0.6 L 0.5 0.04" },
+    "ρ": { a: 0.56, d: "M 0.1 -0.04 L 0.1 0.36 C 0.1 0.54 0.24 0.62 0.38 0.58 C 0.5 0.54 0.54 0.42 0.5 0.28 C 0.46 0.14 0.32 0.06 0.2 0.08" },
+    "σ": { a: 0.62, d: "M 0.62 0.58 L 0.34 0.58 C 0.19 0.58 0.08 0.47 0.08 0.32 C 0.08 0.17 0.19 0.06 0.34 0.06 C 0.49 0.06 0.6 0.17 0.6 0.32 C 0.6 0.47 0.49 0.58 0.34 0.58" },
+    "ς": { a: 0.46, d: "M 0.44 0.6 C 0.28 0.66 0.1 0.58 0.08 0.42 C 0.06 0.26 0.2 0.12 0.34 0.1 C 0.28 0.04 0.2 0.02 0.12 0.06" },
+    "τ": { a: 0.5, d: "M 0.04 0.6 L 0.48 0.6 M 0.28 0.6 L 0.28 0.16 C 0.28 0.04 0.36 -0.02 0.44 0.02" },
+    "υ": { a: 0.56, d: "M 0.04 0.6 L 0.04 0.28 C 0.04 0.1 0.16 -0.02 0.28 0.04 C 0.4 0.1 0.5 0.24 0.5 0.4 L 0.5 0.6" },
+    "φ": { a: 0.62, d: "M 0.3 0.72 L 0.3 -0.02 M 0.3 0.6 C 0.14 0.6 0.04 0.5 0.06 0.34 C 0.08 0.18 0.18 0.1 0.3 0.1 C 0.44 0.1 0.54 0.2 0.54 0.34 C 0.54 0.5 0.44 0.6 0.3 0.6 Z" },
+    "χ": { a: 0.54, d: "M 0.02 0.62 L 0.52 0.0 M 0.5 0.62 L 0.04 0.0" },
+    "ψ": { a: 0.64, d: "M 0.32 0.72 L 0.32 0.0 M 0.06 0.6 L 0.06 0.36 C 0.06 0.18 0.18 0.1 0.32 0.1 C 0.46 0.1 0.58 0.18 0.58 0.36 L 0.58 0.6" },
+    "ω": { a: 0.66, d: "M 0.06 0.6 L 0.06 0.3 C 0.06 0.12 0.22 0.04 0.32 0.14 C 0.42 0.24 0.42 0.4 0.36 0.52 M 0.36 0.52 C 0.44 0.6 0.6 0.52 0.6 0.34 C 0.6 0.12 0.46 0.04 0.36 0.14" },
+
+    "Γ": { w: 0.095, a: 0.56, d: "M 0.08 0.02 L 0.08 0.68 L 0.52 0.68" },
+    "Δ": { w: 0.095, a: 0.64, d: "M 0.04 0.02 L 0.32 0.7 L 0.6 0.02 Z" },
+    "Θ": { w: 0.095, a: 0.72, d: "M 0.33 0.68 C 0.53 0.68 0.64 0.54 0.64 0.36 C 0.64 0.18 0.53 0.04 0.33 0.04 C 0.13 0.04 0.02 0.18 0.02 0.36 C 0.02 0.54 0.13 0.68 0.33 0.68 Z M 0.13 0.36 L 0.53 0.36" },
+    "Λ": { w: 0.095, a: 0.62, d: "M 0.04 0.02 L 0.31 0.7 L 0.58 0.02" },
+    "Ξ": { w: 0.095, a: 0.58, d: "M 0.06 0.68 L 0.54 0.68 M 0.12 0.36 L 0.48 0.36 M 0.06 0.04 L 0.54 0.04" },
+    "Π": { w: 0.095, a: 0.64, d: "M 0.04 0.68 L 0.6 0.68 M 0.1 0.68 L 0.1 0.02 M 0.54 0.68 L 0.54 0.02" },
+    "Σ": { w: 0.095, a: 0.6, d: "M 0.58 0.68 L 0.06 0.68 L 0.36 0.36 L 0.06 0.02 L 0.58 0.02" },
+    "Φ": { w: 0.095, a: 0.68, d: "M 0.34 0.72 L 0.34 0.0 M 0.34 0.62 C 0.16 0.62 0.06 0.52 0.06 0.36 C 0.06 0.2 0.16 0.1 0.34 0.1 C 0.52 0.1 0.62 0.2 0.62 0.36 C 0.62 0.52 0.52 0.62 0.34 0.62 Z" },
+    "Ψ": { w: 0.095, a: 0.68, d: "M 0.34 0.72 L 0.34 0.0 M 0.06 0.7 L 0.06 0.4 C 0.06 0.2 0.2 0.1 0.34 0.1 C 0.48 0.1 0.62 0.2 0.62 0.4 L 0.62 0.7" },
+    "Ω": { w: 0.095, a: 0.68, d: "M 0.04 0.02 L 0.24 0.02 C 0.14 0.14 0.1 0.26 0.1 0.38 C 0.1 0.56 0.2 0.68 0.34 0.68 C 0.48 0.68 0.58 0.56 0.58 0.38 C 0.58 0.26 0.54 0.14 0.44 0.02 L 0.64 0.02" },
+    "Α": { w: 0.095, a: 0.64, d: "M 0.04 0.02 L 0.32 0.7 L 0.6 0.02 M 0.14 0.24 L 0.5 0.24" },
+    "Β": { w: 0.095, a: 0.66, d: "M 0.1 0.02 L 0.1 0.68 L 0.34 0.68 C 0.5 0.68 0.56 0.58 0.56 0.5 C 0.56 0.4 0.46 0.34 0.34 0.34 L 0.1 0.34 M 0.34 0.34 C 0.5 0.34 0.58 0.24 0.58 0.15 C 0.58 0.06 0.48 0.02 0.1 0.02" },
+    "Ε": { w: 0.095, a: 0.56, d: "M 0.52 0.68 L 0.1 0.68 L 0.1 0.02 L 0.52 0.02 M 0.1 0.36 L 0.44 0.36" },
+    "Ζ": { w: 0.095, a: 0.56, d: "M 0.06 0.68 L 0.52 0.68 L 0.1 0.02 L 0.54 0.02" },
+    "Η": { w: 0.095, a: 0.64, d: "M 0.08 0.68 L 0.08 0.02 M 0.56 0.68 L 0.56 0.02 M 0.08 0.36 L 0.56 0.36" },
+    "Ι": { w: 0.095, a: 0.28, d: "M 0.14 0.68 L 0.14 0.02" },
+    "Κ": { w: 0.095, a: 0.6, d: "M 0.08 0.68 L 0.08 0.02 M 0.56 0.68 L 0.12 0.36 M 0.28 0.48 L 0.58 0.02" },
+    "Μ": { w: 0.095, a: 0.74, d: "M 0.06 0.02 L 0.06 0.68 M 0.06 0.68 L 0.37 0.14 L 0.68 0.68 M 0.68 0.68 L 0.68 0.02" },
+    "Ν": { w: 0.095, a: 0.66, d: "M 0.08 0.02 L 0.08 0.68 M 0.08 0.68 L 0.58 0.02 M 0.58 0.02 L 0.58 0.68" },
+    "Ο": { w: 0.095, a: 0.72, d: "M 0.33 0.68 C 0.53 0.68 0.64 0.54 0.64 0.36 C 0.64 0.18 0.53 0.04 0.33 0.04 C 0.13 0.04 0.02 0.18 0.02 0.36 C 0.02 0.54 0.13 0.68 0.33 0.68 Z" },
+    "Ρ": { w: 0.095, a: 0.66, d: "M 0.1 0.02 L 0.1 0.68 L 0.32 0.68 C 0.5 0.68 0.58 0.58 0.58 0.46 C 0.58 0.34 0.5 0.26 0.32 0.26 L 0.1 0.26" },
+    "Τ": { w: 0.095, a: 0.58, d: "M 0.04 0.68 L 0.54 0.68 M 0.29 0.68 L 0.29 0.02" },
+    "Υ": { w: 0.095, a: 0.64, d: "M 0.04 0.68 L 0.31 0.36 L 0.58 0.68 M 0.31 0.36 L 0.31 0.02" },
+    "Χ": { w: 0.095, a: 0.62, d: "M 0.04 0.68 L 0.58 0.02 M 0.58 0.68 L 0.04 0.02" },
+  };
+
+  // The same shape under a second number. Unicode gave the Greek alphabet
+  // letterforms years before the maths community settled on the symbols people
+  // actually paste into an equation, and the two sets turn up mixed together in
+  // one document, so each variant is drawn with the glyph it varies. A base
+  // that is missing is a hole in the table, and a silent skip turns the variant
+  // into a "?" in a real document without a word anywhere, so it is said out
+  // loud rather than swallowed.
+  for (const [variant, base] of Object.entries({
+    "∆": "Δ", "ϕ": "φ", "ϑ": "θ", "ϱ": "ρ", "ϖ": "π", "ϵ": "ε", "ϝ": "ξ",
+    "ϒ": "Υ", "Ϲ": "Σ", "Ϻ": "Μ", "Ϝ": "Φ", "ϛ": "ς",
+  })) {
+    if (!MATH_GLYPHS[base]) {
+      throw new Error(`The glyph table has no "${base}" for the variant "${variant}" (U+${base.codePointAt(0).toString(16).toUpperCase()}).`);
+    }
+    MATH_GLYPHS[variant] = MATH_GLYPHS[base];
+  }
+
+  // A letterform is described with y growing upwards from the baseline, and the
+  // table above is written that way. pdf-lib draws a path through a matrix that
+  // turns a positive y downwards, so a glyph handed to it as written comes out
+  // below the line and upside down. The sign of every y is flipped once, here,
+  // and every drawing call afterwards only has to put the glyph's own zero on
+  // the text baseline.
+  const PATH_ARITY = { M: 2, L: 2, C: 6, Z: 0 };
+
+  function flipPathY(data) {
+    const tokens = String(data).match(/[A-Za-z]|-?\d*\.?\d+/g) || [];
+    const out = [];
+    for (let i = 0; i < tokens.length;) {
+      const command = tokens[i++];
+      const arity = PATH_ARITY[command.toUpperCase()];
+      if (arity === undefined) { out.push(command); continue; }
+      out.push(command);
+      for (let n = 0; n < arity; n += 2) {
+        const px = tokens[i++];
+        const py = tokens[i++];
+        if (px === undefined || py === undefined) return out.join(" ");
+        out.push(px, String(-Number(py) || 0));
+      }
+    }
+    return out.join(" ");
+  }
+
+  for (const [character, glyph] of Object.entries(MATH_GLYPHS)) {
+    MATH_GLYPHS[character] = { a: glyph.a, w: glyph.w, d: flipPathY(glyph.d) };
+  }
+
+  // The order the table is walked in decides which private-use code stands for
+  // which glyph, so it is fixed once here rather than taken from Object.keys at
+  // each call site.
+  const MATH_SENTINELS = new Map();
+  const SENTINEL_GLYPHS = new Map();
+  // The byte each sentinel is written as in the text layer the font below
+  // carries. It is fixed here, once, so the table and the codes can never drift
+  // apart; nothing about the code is allowed to depend on the document.
+  const MATH_CODES = new Map();
+  let nextSentinel = 0xe000;
+  for (const character of Object.keys(MATH_GLYPHS)) {
+    const sentinel = String.fromCharCode(nextSentinel++);
+    MATH_SENTINELS.set(character, sentinel);
+    SENTINEL_GLYPHS.set(sentinel, MATH_GLYPHS[character]);
+    MATH_CODES.set(sentinel, MATH_CODES.size + 1);
+  }
+  // The weight a glyph is stroked at, as a fraction of the em, unless its own
+  // entry says otherwise. It matches the stem of the text it sits among: the
+  // upper-case and relation signs ask for a shade more, the smallest marks for
+  // a shade less. Both figures are measured against Helvetica's stem at the
+  // body size, not chosen by eye - a symbol that reads paler than the words
+  // beside it reads as a mistake.
+  const GLYPH_STROKE = 0.085;
+
+  function sentinelGlyph(character) {
+    if (!character || character.length !== 1) return null;
+    const code = character.charCodeAt(0);
+    if (code < 0xe000 || code > 0xefff) return null;
+    return SENTINEL_GLYPHS.get(character) || null;
+  }
+
+  // Characters with no drawn glyph of their own still keep their meaning
+  // rather than being replaced by "?", because an equation written in words is
+  // still an equation. WinAnsi has room for all of these.
+  const MATH_TEXT_FALLBACK = {
+    "ℓ": "l", "ℏ": "h", "ℜ": "R", "ℑ": "I", "ℵ": "infinity",
+    "⌈": "[", "⌉": "]", "⌊": "[", "⌋": "]",
+    "⊤": "T", "⊥": "|", "⊦": "|-", "⊣": "-|",
+    "≜": ":=", "≝": ":=", "≟": "=?",
+    "⋮": "...", "⋯": "...", "⁝": "...",
+    "′": "'", "″": "''", "‴": "'''",
+    "∙": "*", "⋅": "*", "∗": "*",
+    "⁄": "/", "∕": "/",
+    "−": "-", "–": "-", "—": "-",
+    "　": " ", "": "",
+    "ℝ": "R", "ℕ": "N", "ℤ": "Z", "ℚ": "Q", "ℂ": "C",
+    "∘": "o", "◎": "O", "⊛": "*", "⊚": "O",
+  };
+
   const BASE_WARNINGS = {
     docx: "Fonts, colours, spacing and the original page layout are not reproduced. This PDF contains the text, tables and images in reading order, set in a standard font.",
     pptx: "Slides are reproduced at their original size, but fonts, colours, backgrounds and animations are not. Text and images appear in the order they sit on the slide.",
@@ -86,6 +312,13 @@
 
   const FONT_WARNING =
     "Some characters in this document are outside the standard PDF font (for example Hindi, Chinese or emoji) and were replaced with “?”. Export it as a PDF from Word or Excel for full fidelity.";
+
+  // Drawn glyphs do carry their character into the file, through the table the
+  // symbol font below carries, so a copy or a conversion keeps them. What is
+  // still not text is the letterform on the page, and saying so is the difference
+  // between an honest result and one that looks complete and is not.
+  const DRAWN_SYMBOL_WARNING =
+    "Mathematical symbols (√, ≤, ∑, Greek letters) are drawn as line art rather than typeset, because the standard PDF font cannot hold them. Their characters are in the text layer, so they copy out and convert; but the shape on the page is a drawing, so a reader or converter that lays the text out again will show them as missing. Export the file as a PDF from Word or Excel for a fully typeset result.";
 
   /* ---------- naming ---------- */
 
@@ -396,15 +629,29 @@
       const font = bold ? fonts.bold : fonts.regular;
       let ok = true;
       try {
-        const encode = typeof font.encodeText === "function"
-          ? font.encodeText
-          : font.embedder.encodeText.bind(font.embedder);
-        encode(character);
+        // Called on the font, not detached from it. Pulled off the object and
+        // invoked bare, encodeText reads `this.embedder` off the undefined value
+        // a detached call leaves behind and throws for every character - so this
+        // answered "no" for the whole of Latin-1, and a pound sign, a degree
+        // sign, an accented letter or a plus-minus all came out as "?".
+        if (typeof font.encodeText === "function") font.encodeText(character);
+        else font.embedder.encodeText(character);
       } catch (err) {
         ok = false;
       }
       encodable.set(key, ok);
       return ok;
+    }
+
+    // A character the font cannot draw gets three chances, in order of how
+    // faithfully each keeps it: a glyph drawn from vector data, a spelling in
+    // the characters the font does have, and only then "?". Math used to have
+    // one chance, so an equation came out as a row of question marks.
+    function replacementFor(character) {
+      const sentinel = MATH_SENTINELS.get(character);
+      if (sentinel !== undefined) return sentinel;
+      const spelled = MATH_TEXT_FALLBACK[character];
+      return spelled === undefined ? null : spelled;
     }
 
     function sanitize(text) {
@@ -417,26 +664,51 @@
         if (code === 10 || code === 13 || code === 9) { out += character; continue; }
         if (code < 32) continue;
         if (code < 128) { out += character; continue; }  // plain ASCII always encodes
-        if (canEncode(character, false)) out += character;
-        else {
-          out += preserve ? character : "?";
-          dropped.count++;
-        }
+        // Sanitising is idempotent because the parsers run the text through
+        // here once and the renderer runs it through again on the way to the
+        // page. A sentinel standing for a drawn glyph has to survive the second
+        // pass, or every symbol the table can draw comes out as "?".
+        if (code >= 0xe000 && code <= 0xefff) { out += character; continue; }
+        if (canEncode(character, false)) { out += character; continue; }
+        if (preserve) { out += character; dropped.count++; continue; }
+        const replacement = replacementFor(character);
+        if (replacement !== null) { out += replacement; continue; }
+        out += "?";
+        dropped.count++;
       }
       return out;
     }
 
+    // Measured in pieces because the sentinels are not characters the font
+    // knows: each stands for a glyph of a width the table gives, and adding
+    // that width here is what keeps the text from being laid out short of where
+    // it is actually drawn.
     function width(text, font, size) {
       if (!text) return 0;
-      try {
-        return font.widthOfTextAtSize(text, size);
-      } catch (err) {
-        // Belt and braces: everything measured has already been sanitised.
-        return text.length * size * 0.5;
+      let total = 0;
+      let buffer = "";
+      const flush = () => {
+        if (!buffer) return;
+        try {
+          total += font.widthOfTextAtSize(buffer, size);
+        } catch (err) {
+          // Belt and braces: everything measured has already been sanitised,
+          // and extract() has no font at all because it never draws.
+          total += buffer.length * size * 0.5;
+        }
+        buffer = "";
+      };
+      for (const character of String(text)) {
+        const glyph = sentinelGlyph(character);
+        if (!glyph) { buffer += character; continue; }
+        flush();
+        total += glyph.a * size;
       }
+      flush();
+      return total;
     }
 
-    return { sanitize, width, dropped };
+    return { sanitize, width, dropped, replacementFor };
   }
 
   // extract() parses with no PDF document and so no fonts to pick from. It
@@ -721,7 +993,10 @@
       kind: "",
       colors: COLORS,
       warnings: [],
-      stats: { images: 0, characters: 0, droppedCharacters: 0 },
+      stats: { images: 0, characters: 0, droppedCharacters: 0, drawnGlyphs: 0 },
+      // undefined until a drawn symbol needs the font behind it, then the font
+      // itself, or null if building one was tried and did not work.
+      symbols: undefined,
       warn(message) {
         if (!message || seen.has(message)) return;
         seen.add(message);
@@ -777,6 +1052,166 @@
     return flow;
   }
 
+  /* ---------- the text layer behind a drawn symbol ----------
+   *
+   * Line art is invisible to anything that reads a PDF's text. A copy of the
+   * page, a search for "√" and a conversion of the file back to a Word document
+   * all read the text layer, and without something there they see nothing at
+   * all - so a symbol that looked perfectly correct on the page had silently
+   * stopped being a character.
+   *
+   * pdf-lib offers no way to attach a /ToUnicode table to a standard font, and
+   * adding one is not meant to need fontkit either: the table is an ordinary
+   * stream, and pdf-lib will happily write a font dictionary the caller builds
+   * by hand. So the document is given one font of its own, built here from
+   * nothing but the glyph table above. It is a plain Type1 dictionary that borrows
+   * Helvetica's letterforms it will never paint, one code per drawn symbol, and
+   * a /ToUnicode table that maps each of those codes back to the character the
+   * code stands for. No font is downloaded, none is embedded, and nothing is
+   * fetched: the codes are written with rendering mode 3, which paints nothing
+   * at all, so the only thing this font ever contributes is the character's
+   * identity and the width the line art already occupies.
+   */
+
+  const MATH_FONT_RESOURCE = "SwiftSymbols";
+  // A ToUnicode table maps at most 100 characters per block. The codespace below
+  // is a single byte, which is room for 256 of them - the glyph table has 112
+  // entries, so there is a long way to run out.
+  const CMAP_BLOCK = 100;
+
+  function twoHex(value) {
+    return value.toString(16).toUpperCase().padStart(2, "0");
+  }
+
+  // UTF-16BE, the form a CMap names its destinations in. The glyph table is all
+  // in the basic plane today; going through the code units means a character
+  // above it still lands on the page rather than silently becoming a blank.
+  function utf16Hex(character) {
+    let out = "";
+    for (let i = 0; i < character.length; i++) {
+      out += character.charCodeAt(i).toString(16).toUpperCase().padStart(4, "0");
+    }
+    return out;
+  }
+
+  function symbolFont(ctx) {
+    const pdf = ctx.pdf;
+    const doc = ctx.doc;
+    if (!pdf || !doc) return null;
+    const context = doc.context;
+
+    const characters = [];
+    const widths = [];
+    for (const [character, sentinel] of MATH_SENTINELS) {
+      characters.push(`<${twoHex(MATH_CODES.get(sentinel))}> <${utf16Hex(character)}>`);
+      // The width is the one the drawing already takes up, so a reader placing
+      // its selection over this text selects exactly what was drawn.
+      widths.push(Math.round(SENTINEL_GLYPHS.get(sentinel).a * 1000));
+    }
+
+    let cmap = "/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n"
+      + "/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n"
+      + `/CMapName /SwiftPDF-Symbols def\n/CMapType 2 def\n`
+      + "1 begincodespacerange\n<00> <FF>\nendcodespacerange\n";
+    for (let i = 0; i < characters.length; i += CMAP_BLOCK) {
+      const block = characters.slice(i, i + CMAP_BLOCK);
+      cmap += `${block.length} beginbfchar\n${block.join("\n")}\nendbfchar\n`;
+    }
+    cmap += "endcmap\nCMapName currentdict /CMap defineresource pop\nend\nend";
+
+    // A couple of kilobytes of text that compresses to almost nothing. The
+    // compression is worth having but not worth a failure: if the compressor is
+    // not there, the table goes in as it is and the file is only a little larger.
+    let toUnicode;
+    try {
+      toUnicode = context.register(context.flateStream(cmap, {}));
+    } catch (err) {
+      toUnicode = context.register(context.stream(cmap, {}));
+    }
+    const ref = context.register(context.obj({
+      Type: "Font",
+      Subtype: "Type1",
+      BaseFont: "Helvetica",
+      FirstChar: 1,
+      LastChar: characters.length,
+      Widths: widths,
+      // A plain base encoding and nothing else. A /Differences array would be the
+      // tidier way to give each code a glyph name, but a reader is entitled to
+      // read the character's identity out of it in preference to the table
+      // below - and pdf.js does exactly that, which quietly turns every symbol
+      // back into the letter it borrowed.
+      Encoding: "WinAnsiEncoding",
+      ToUnicode: toUnicode,
+    }));
+
+    return { name: pdf.PDFName.of(MATH_FONT_RESOURCE), ref };
+  }
+
+  // The character behind a drawn glyph, written as invisible text at the point
+  // the drawing starts. It is a text object of its own and closes before the
+  // next run begins, so the caller advances its cursor exactly once - which is
+  // what width() already charged for the symbol. Charging it a second time would
+  // shorten every line it appeared in, and every sheet column measured against it.
+  function drawSymbolText(ctx, page, sentinel, x, baseline, size) {
+    const code = MATH_CODES.get(sentinel);
+    if (code === undefined) return;
+    if (ctx.symbols === undefined) {
+      // A font this file has built by hand is not supposed to be able to fail,
+      // but a page without its text layer is a much smaller loss than a
+      // conversion that stops halfway, so the attempt is made only once.
+      try {
+        ctx.symbols = symbolFont(ctx);
+      } catch (err) {
+        console.error(err);
+        ctx.symbols = null;
+      }
+    }
+    const font = ctx.symbols;
+    if (!font) return;
+    const pdf = ctx.pdf;
+    page.node.setFontDictionary(font.name, font.ref);
+    page.pushOperators(
+      pdf.beginText(),
+      pdf.setFontAndSize(font.name, size),
+      pdf.setTextRenderingMode(pdf.TextRenderingMode.Invisible),
+      pdf.setTextMatrix(1, 0, 0, 1, x, baseline),
+      pdf.showText(pdf.PDFHexString.of(twoHex(code))),
+      pdf.endText()
+    );
+    ctx.stats.drawnGlyphs++;
+  }
+
+  // One line of text, with any character the font cannot draw pulled out of
+  // the string and drawn as strokes at the same weight as the words around it.
+  // The runs are still measured and placed as whole strings, so this only has
+  // to keep the pieces landing where the measurement said they would.
+  function drawTextWithGlyphs(ctx, page, text, x, baseline, size, font, color) {
+    let cursor = x;
+    let buffer = "";
+    const flush = () => {
+      if (!buffer) return;
+      page.drawText(buffer, { x: cursor, y: baseline, size, font, color });
+      cursor += ctx.shaper.width(buffer, font, size);
+      buffer = "";
+    };
+    for (const character of text) {
+      const glyph = sentinelGlyph(character);
+      if (!glyph) { buffer += character; continue; }
+      flush();
+      page.drawSvgPath(glyph.d, {
+        x: cursor,
+        y: baseline,
+        scale: size,
+        borderColor: color,
+        // pdf-lib multiplies this by the scale, so it stays a fraction of the em.
+        borderWidth: glyph.w || GLYPH_STROKE,
+      });
+      drawSymbolText(ctx, page, character, cursor, baseline, size);
+      cursor += glyph.a * size;
+    }
+    flush();
+  }
+
   // Each visual line is drawn as whole text runs rather than one call per run of
   // the source document: a reader that extracts the text then sees real spaces
   // between the words, and the PDF carries fewer, tidier show operations.
@@ -794,13 +1229,7 @@
         // a future call site cannot reintroduce the "whole file fails on one odd
         // character" bug.
         const safe = ctx.shaper.sanitize(run.text);
-        page.drawText(safe, {
-          x: run.x,
-          y: baseline,
-          size: run.size,
-          font: run.font,
-          color: ctx.color(COLORS.text),
-        });
+        drawTextWithGlyphs(ctx, page, safe, run.x, baseline, run.size, run.font, ctx.color(COLORS.text));
         ctx.stats.characters += safe.length;
       }
       run = null;
@@ -956,6 +1385,211 @@
     });
   }
 
+  /* ---------- Word equations and legacy symbol runs ---------- */
+
+  // <w:sym> is how Word stores a character it drew from a symbol font, and the
+  // font is named alongside the code. The Symbol font's codes are the Adobe
+  // Symbol encoding, so those are translated; a dingbat font has no Unicode
+  // equivalent worth guessing at, so those are left out rather than turned into
+  // the wrong letter.
+  const SYMBOL_FONT_CODES = {
+    0xa3: "≤", 0xa5: "∞", 0xb3: "≥", 0xb4: "×", 0xb5: "∝", 0xb8: "÷", 0xb9: "≠",
+    0xba: "≈", 0xbb: "≡", 0xbc: "…", 0xbd: "∴", 0xbe: "∵", 0xbf: "∝",
+    0xc0: "↔", 0xc3: "←", 0xc4: "↔", 0xc5: "↑", 0xc9: "→", 0xcc: "∪", 0xcd: "⊃",
+    0xd0: "→", 0xd1: "↑", 0xd2: "↓", 0xd5: "⊂", 0xd6: "√", 0xdc: "⇒",
+    0xe5: "∑", 0xf2: "∫", 0xf7: "∏", 0xf0: "¬", 0xf1: "∧", 0xf2: "∫",
+    0xe3: "⊆", 0xe9: "⊇", 0xce: "∈", 0xcf: "∉", 0xac: "←", 0xad: "↑",
+    0xa0: "∀", 0xa1: "∃", 0x24: "∃", 0x2c: "¬", 0x5e: "⇒", 0x7b: "≡",
+    0x41: "Α", 0x42: "Β", 0x47: "Γ", 0x44: "Δ", 0x45: "Ε", 0x5a: "Ζ", 0x48: "Η",
+    0x49: "Ι", 0x4b: "Κ", 0x4c: "Λ", 0x4d: "Μ", 0x4e: "Ν", 0x50: "Π", 0x52: "Ρ",
+    0x53: "Σ", 0x54: "Τ", 0x55: "Υ", 0x57: "Ω", 0x58: "Χ", 0x59: "Ψ", 0x4a: "Θ",
+    0x61: "α", 0x62: "β", 0x63: "χ", 0x64: "δ", 0x65: "ε", 0x66: "φ", 0x67: "γ",
+    0x68: "η", 0x69: "ι", 0x6a: "ϑ", 0x6b: "κ", 0x6c: "λ", 0x6d: "μ", 0x6e: "ν",
+    0x6f: "ο", 0x70: "π", 0x71: "θ", 0x72: "ρ", 0x73: "σ", 0x74: "τ", 0x75: "υ",
+    0x77: "ω", 0x78: "ξ", 0x79: "ψ", 0x7a: "ζ",
+  };
+
+  function symbolCharacter(node) {
+    const font = String(attr(node, "font") || "");
+    const raw = String(attr(node, "char") || "");
+    const code = parseInt(raw, 16);
+    if (!Number.isFinite(code)) return "";
+    // Word writes the high bytes of a symbol font into the F0xx private range.
+    if (/^symbol$/i.test(font)) return SYMBOL_FONT_CODES[code & 0xff] || "";
+    return "";
+  }
+
+  // Word's equations are OMML, a tree of tagged elements that says what each
+  // piece *is* - a radicand, a numerator, a superscript - and stores the radical
+  // sign as a drawn bar rather than as a character at all. A PDF has no such
+  // structure, so the tree is read into the one-line form a mathematician would
+  // type: √(x² + y²), a/b, x₁ + x₂, ∑(i=1..n). The structure is flattened, the
+  // characters are not, which is the whole point.
+  function ommlChildren(node, name) {
+    const out = [];
+    for (const child of node.children || []) if (localName(child) === name) out.push(child);
+    return out;
+  }
+
+  function ommlFirst(node, name) {
+    return ommlChildren(node, name)[0] || null;
+  }
+
+  // The characters an OMML property element can set, and what they mean when
+  // absent. `m:chr` names the glyph directly; the rest are switches.
+  function ommlProperty(node, propertyName, elementName, fallback) {
+    const props = ommlFirst(node, propertyName);
+    if (!props) return fallback;
+    const element = ommlFirst(props, elementName);
+    if (!element) return fallback;
+    // attr() answers null for a name that is not there at all, and an empty
+    // string is meaningful here - Word writes <m:begChr m:val=""/> for a
+    // delimiter it is using only for spacing - so only null means "use the
+    // default". Letting null through wrote the word "null" into an equation.
+    const value = attr(element, "val");
+    return value === null || value === undefined ? fallback : value;
+  }
+
+  function ommlText(node) {
+    let out = "";
+    for (const child of node.children || []) {
+      const tag = localName(child);
+      if (tag === "t") out += child.textContent;
+      else if (tag === "br") out += "\n";
+    }
+    return out;
+  }
+
+  function readOmml(node) {
+    const parts = [];
+    readOmmlInto(node, parts);
+    return parts.join("").replace(/\s+/g, " ").trim();
+  }
+
+  function readOmmlInto(node, parts) {
+    for (const child of node.children || []) {
+      const tag = localName(child);
+      // Property elements (m:fPr, m:radPr, ...) and the wrappers Word puts
+      // around them carry no text of their own.
+      if (tag.length > 2 && tag.endsWith("Pr")) continue;
+      if (tag === "r") { parts.push(ommlText(child)); continue; }
+      if (tag === "oMath" || tag === "oMathPara" || tag === "e" || tag === "num" || tag === "den"
+        || tag === "sub" || tag === "sup" || tag === "deg" || tag === "lim" || tag === "fName"
+        || tag === "ctrlPr" || tag === "argPr" || tag === "fPr" || tag === "rPr") {
+        readOmmlInto(child, parts);
+        continue;
+      }
+
+      // The pieces of an OMML element are named rather than positional: a
+      // fraction has m:num and m:den and no m:e at all, so reading "the first
+      // m:e, or else all of it" would put the denominator in the numerator too.
+      const argument = (name) => {
+        const node = ommlFirst(child, name);
+        if (!node) return "";
+        const out = [];
+        readOmmlInto(node, out);
+        return out.join("").replace(/\s+/g, " ").trim();
+      };
+      const base = () => (ommlFirst(child, "e") ? argument("e") : "");
+      const sub = () => argument("sub");
+      const sup = () => argument("sup");
+
+      switch (tag) {
+        case "f": {
+          const numerator = argument("num") || base();
+          const denominator = argument("den");
+          const style = ommlProperty(child, "fPr", "type", "bar");
+          // A fraction Word drew as a slash or without a bar is still a
+          // fraction, and writing it with a slash says so more plainly.
+          const joiner = style === "lin" || style === "noBar" ? "/" : " / ";
+          parts.push(`(${numerator})${joiner}(${denominator})`);
+          break;
+        }
+        case "rad": {
+          // degHide is how a square root says it has no index; when it is absent
+          // the element under m:deg is the index and belongs before the sign.
+          const hidden = ommlProperty(child, "radPr", "degHide", "1") !== "0";
+          const index = hidden ? "" : argument("deg");
+          // An index is written as a raised digit where one exists, so a cube
+          // root reads as the character people expect rather than as "(3)".
+          const raised = { "1": "¹", "2": "²", "3": "³" }[index];
+          parts.push(index
+            ? raised ? `${raised}√(${base()})` : `√(${index})(${base()})`
+            : `√(${base()})`);
+          break;
+        }
+        case "sSup": parts.push(`${base()}^(${sup()})`); break;
+        case "sSub": parts.push(`${base()}_(${sub()})`); break;
+        case "sSubSup": parts.push(`${base()}_(${sub()})^(${sup()})`); break;
+        case "sPre": {
+          const scripts = argument("sub");
+          parts.push(`${scripts ? scripts + " " : ""}${base()}`);
+          break;
+        }
+        case "nary": {
+          // The operator is a glyph, not a shape: ∑ ∏ ∫ ⋃ and their kin.
+          const chr = String(ommlProperty(child, "naryPr", "chr", "∫"));
+          const lower = sub();
+          const upper = sup();
+          let head = chr;
+          if (lower) head += `_(${lower})`;
+          if (upper) head += `^(${upper})`;
+          parts.push(`${head} ${base()}`.trim());
+          break;
+        }
+        case "d": {
+          // The delimiters are named, not drawn; a pair of empty values is a
+          // delimiter Word is using for its spacing alone.
+          const open = ommlProperty(child, "dPr", "begChr", "(");
+          const close = ommlProperty(child, "dPr", "endChr", ")");
+          const body = base();
+          const sep = ommlProperty(child, "dPr", "sepChr", "|");
+          const many = ommlChildren(child, "e").length > 1;
+          const middle = many ? sep : "";
+          const inner = many ? ommlChildren(child, "e").map(argument).join(middle) : body;
+          parts.push(`${open}${inner}${close}`);
+          break;
+        }
+        case "func": parts.push(`${argument("fName")} ${base()}`.trim()); break;
+        case "acc": {
+          const chr = String(ommlProperty(child, "accPr", "chr", "̂"));
+          const body = base();
+          // A combining mark has to follow the character it sits on, so it goes
+          // after the base rather than before it.
+          parts.push(chr === "̃" ? `${body}̃` : `${body}̂`);
+          break;
+        }
+        case "bar": {
+          const position = ommlProperty(child, "barPr", "pos", "top");
+          const body = base();
+          parts.push(position === "bot" ? `̲(${body})` : `(${body})̅`);
+          break;
+        }
+        case "groupChr": {
+          const chr = String(ommlProperty(child, "groupChrPr", "chr", "⏟"));
+          const position = ommlProperty(child, "groupChrPr", "vertJc", "bot");
+          parts.push(position === "top" ? `⏞(${base()})` : `⏟(${base()})`);
+          break;
+        }
+        case "limLow": parts.push(`${base()}_(${sub()})`); break;
+        case "limUpp": parts.push(`${base()}^(${sup()})`); break;
+        case "m":
+          parts.push(`(${ommlChildren(child, "mr")
+            .map((row) => ommlChildren(row, "e").map(argument).join(", "))
+            .join("; ")})`);
+          break;
+        case "eqArr": parts.push(ommlChildren(child, "e").map(argument).join("; ")); break;
+        case "box":
+        case "borderBox":
+        case "phant":
+        case "argPr": parts.push(base()); break;
+        // Anything else in the tree is a wrapper this version does not know, so
+        // it is read through rather than dropped.
+        default: readOmmlInto(child, parts);
+      }
+    }
+  }
+
   function collectDocxRuns(node, items, rels, ctx, baseSize, baseBold) {
     for (const child of node.children) {
       const tag = localName(child);
@@ -983,6 +1617,13 @@
           else if (partTag === "tab") text += "\t";
           else if (partTag === "br" || partTag === "cr") text += "\n";
           else if (partTag === "noBreakHyphen") text += "-";
+          else if (partTag === "softHyphen") continue;
+          else if (partTag === "sym") text += symbolCharacter(part);
+          else if (partTag === "oMath" || partTag === "oMathPara") {
+            flushText();
+            const maths = readOmml(child);
+            if (maths) items.push({ text: ctx.shaper.sanitize(maths), font, size, bold, italic });
+          }
           else if (partTag === "drawing" || partTag === "pict" || partTag === "object"
             || partTag === "AlternateContent") {
             flushText();
@@ -990,6 +1631,17 @@
           }
         }
         flushText();
+        continue;
+      }
+      // An equation sits beside the words rather than inside a run of them, and
+      // this is the branch that used to walk straight past one: a document whose
+      // mathematics was every symbol on the page came out of it with the
+      // mathematics simply absent.
+      if (tag === "oMath" || tag === "oMathPara") {
+        const maths = readOmml(child);
+        if (maths) {
+          items.push({ text: ctx.shaper.sanitize(maths), font: pickFont(ctx, baseBold, false), size: baseSize, bold: baseBold, italic: false });
+        }
         continue;
       }
       if (tag === "hyperlink" || tag === "smartTag" || tag === "ins" || tag === "sdt"
@@ -1045,7 +1697,28 @@
       else if (tag === "tbl") {
         const table = readDocxTable(child, rels, ctx, counter);
         if (table) blocks.push(table);
-      } else if (tag === "sdt") {
+      }
+      // A display equation is a block of its own, sitting beside the
+      // paragraphs rather than inside one.
+      else if (tag === "oMathPara") {
+        counter.count++;
+        const items = [];
+        const maths = readOmml(child);
+        if (maths) {
+          items.push({ text: ctx.shaper.sanitize(maths), font: pickFont(ctx, false, false), size: BODY_SIZE, bold: false, italic: false });
+          blocks.push({ type: "para", heading: 0, items, size: BODY_SIZE, align: "center", listItem: false, spaceBefore: 6 });
+        }
+      }
+      else if (tag === "oMath") {
+        counter.count++;
+        const items = [];
+        const maths = readOmml(child);
+        if (maths) {
+          items.push({ text: ctx.shaper.sanitize(maths), font: pickFont(ctx, false, false), size: BODY_SIZE, bold: false, italic: false });
+          blocks.push({ type: "para", heading: 0, items, size: BODY_SIZE, align: "left", listItem: false, spaceBefore: 6 });
+        }
+      }
+      else if (tag === "sdt") {
         const content = firstOf(child, "sdtContent");
         if (content) appendDocxBlocks(content, rels, ctx, counter, blocks);
       }
@@ -1799,13 +2472,8 @@
       flow.newPage();
       const gridTop = firstPage ? TOP_MARGIN + 18 : TOP_MARGIN;
       if (firstPage) {
-        flow.page.drawText(ctx.shaper.sanitize(sheet.name) || "Sheet", {
-          x: flow.left,
-          y: flow.down(TOP_MARGIN - 5),
-          size: 9,
-          font: ctx.fonts.bold,
-          color: ctx.color(COLORS.muted),
-        });
+        drawTextWithGlyphs(ctx, flow.page, ctx.shaper.sanitize(sheet.name) || "Sheet",
+          flow.left, flow.down(TOP_MARGIN - 5), 9, ctx.fonts.bold, ctx.color(COLORS.muted));
       }
       drawSheetHeader(ctx, flow, geometry, sheet, gridTop, tally);
       flow.y = gridTop + rowHeight;
@@ -1854,13 +2522,9 @@
       const index = column - sheet.bounds.minColumn;
       if (index < 0 || index >= geometry.columnCount) continue;
       const shown = fitCellText(ctx, text, geometry.widths[index] - geometry.pad, geometry.fontSize, tally);
-      flow.page.drawText(shown, {
-        x: geometry.positions[index] + 3,
-        y: flow.down(bandBottom - geometry.rowHeight * 0.27),
-        size: geometry.fontSize,
-        font: ctx.fonts.bold,
-        color: ctx.color(COLORS.text),
-      });
+      drawTextWithGlyphs(ctx, flow.page, shown,
+        geometry.positions[index] + 3, flow.down(bandBottom - geometry.rowHeight * 0.27),
+        geometry.fontSize, ctx.fonts.bold, ctx.color(COLORS.text));
       ctx.stats.characters += shown.length;
     }
   }
@@ -1884,13 +2548,9 @@
         ? geometry.widths[index]
         : geometry.positions[index] + geometry.widths[index] - flow.left;
       const shown = fitCellText(ctx, text, room, geometry.fontSize, tally);
-      flow.page.drawText(shown, {
-        x: geometry.positions[index] + 3,
-        y: flow.down(bottom - geometry.rowHeight * 0.27),
-        size: geometry.fontSize,
-        font: ctx.fonts.regular,
-        color: ctx.color(COLORS.text),
-      });
+      drawTextWithGlyphs(ctx, flow.page, shown,
+        geometry.positions[index] + 3, flow.down(bottom - geometry.rowHeight * 0.27),
+        geometry.fontSize, ctx.fonts.regular, ctx.color(COLORS.text));
       ctx.stats.characters += shown.length;
     }
   }
@@ -2359,6 +3019,9 @@
         ctx.stats.droppedCharacters = shaper.dropped.count;
         ctx.warn(FONT_WARNING);
       }
+      // Counted while the page is drawn, so this reports what the file actually
+      // contains rather than what the document happened to contain.
+      if (ctx.stats.drawnGlyphs > 0) ctx.warn(DRAWN_SYMBOL_WARNING);
       const saved = await doc.save();
       step("Writing the PDF");
 
@@ -2366,6 +3029,7 @@
         images: ctx.stats.images,
         characters: ctx.stats.characters,
         droppedCharacters: ctx.stats.droppedCharacters,
+        drawnGlyphs: ctx.stats.drawnGlyphs,
       };
       if (ctx.stats.paragraphs !== undefined) stats.paragraphs = ctx.stats.paragraphs;
       if (ctx.stats.slides !== undefined) stats.slides = ctx.stats.slides;
@@ -2419,4 +3083,10 @@
   // advertised PDF converter, so it is attached without being enumerable - a
   // real, public, callable method, deliberately outside that surface.
   window.SwiftOffice = { isOfficeFile, kindOf, toPdf, extract };
+  // The glyph table and the private-use codes that stand in for it, so the
+  // rendering of a symbol can be checked against the characters it has to draw.
+  // Non-enumerable for the same reason extract() is: it is not part of the
+  // surface pdf-core.js and office.spec.mjs treat as published.
+  Object.defineProperty(window.SwiftOffice, "mathGlyphs", { value: MATH_GLYPHS, enumerable: false });
+  Object.defineProperty(window.SwiftOffice, "mathSentinels", { value: MATH_SENTINELS, enumerable: false });
 })();

@@ -411,7 +411,7 @@ function renderEditor() {
   add.innerHTML = '<span class="ws-add-plus">+</span>Add images';
   add.addEventListener("click", () => imageInput.click());
   editorGrid.appendChild(add);
-  document.getElementById("editorCount").textContent = `${pageItems.length} page${pageItems.length === 1 ? "" : "s"} · drag to reorder. On phones, drag a page to move it.`;
+  document.getElementById("editorCount").textContent = `${pageItems.length} page${pageItems.length === 1 ? "" : "s"} · drag to reorder. On phones, drag a page to move it. Cropped PDF pages will be saved as images; ${NO_TEXT} on them.`;
 }
 
 function addEditorAction(container, label, title, action) {
@@ -442,6 +442,7 @@ async function applyCropToItem(item) {
     hideResultBar();
     renderEditor();
     drawPageCards();
+    setStatus(`Crop applied.${flattenedWarning(croppedCount(pageItems))}`, "success");
   } catch (err) {
     setStatus(explainProcessingError(err, "Cropping this page", sourceFile && sourceFile.name), "error");
   }
@@ -564,25 +565,25 @@ function canvasBlob(canvas, type, quality) {
   return new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not prepare the image page.")), type, quality));
 }
 
-async function addImagePage(document, item, pdfLib) {
+async function addImagePage(out, item) {
   const canvas = await makeImageCanvas(item);
   try {
     const blob = await canvasBlob(canvas, "image/jpeg", 0.94);
     const bytes = await blob.arrayBuffer();
-    const image = await document.embedJpg(bytes);
+    const image = await out.embedJpg(bytes);
     const landscape = canvas.width > canvas.height;
     const pageWidth = landscape ? 841.89 : 595.28;
     const pageHeight = landscape ? 595.28 : 841.89;
     const margin = 24;
     const scale = Math.min((pageWidth - margin * 2) / canvas.width, (pageHeight - margin * 2) / canvas.height);
     const width = canvas.width * scale, height = canvas.height * scale;
-    const page = document.addPage([pageWidth, pageHeight]);
+    const page = out.addPage([pageWidth, pageHeight]);
     page.drawImage(image, { x: (pageWidth - width) / 2, y: (pageHeight - height) / 2, width, height });
     return page;
   } finally { canvas.width = 0; canvas.height = 0; }
 }
 
-async function addCroppedPdfPage(document, item, pdfLib) {
+async function addCroppedPdfPage(out, item) {
   const dimensions = await getPdfPageSize(item);
   const scale = Math.min(2, 6000 / Math.max(dimensions.width, dimensions.height));
   const rendered = await renderPdfPageCanvas(item, scale);
@@ -594,11 +595,11 @@ async function addCroppedPdfPage(document, item, pdfLib) {
   cropped.width = width; cropped.height = height;
   cropped.getContext("2d").drawImage(rendered, crop.x * ratio, crop.y * ratio, crop.w * ratio, crop.h * ratio, 0, 0, width, height);
   const blob = await canvasBlob(cropped, "image/jpeg", 0.94);
-  const image = await document.embedJpg(await blob.arrayBuffer());
+  const image = await out.embedJpg(await blob.arrayBuffer());
   // A scale-1 PDF.js viewport uses the PDF page's user-space dimensions.
   const pageWidth = crop.w / (item.cropScale || 1);
   const pageHeight = crop.h / (item.cropScale || 1);
-  const page = document.addPage([pageWidth, pageHeight]);
+  const page = out.addPage([pageWidth, pageHeight]);
   page.drawImage(image, { x: 0, y: 0, width: pageWidth, height: pageHeight });
   rendered.width = 0; rendered.height = 0; cropped.width = 0; cropped.height = 0;
   return page;
@@ -610,16 +611,16 @@ function updateSelection() {
   extractBtn.disabled = busy || selected === 0;
 }
 
-async function addRenderedPdfPage(document, item) {
+async function addRenderedPdfPage(out, item) {
   const dimensions = await getPdfPageSize(item);
   const scale = Math.min(2, 2400 / Math.max(dimensions.width, dimensions.height));
   const canvas = await renderPdfPageCanvas(item, scale);
   try {
-    const image = await document.embedJpg(await (await canvasBlob(canvas, "image/jpeg", 0.92)).arrayBuffer());
+    const image = await out.embedJpg(await (await canvasBlob(canvas, "image/jpeg", 0.92)).arrayBuffer());
     // Preserve the original user-space dimensions reported by the scale-1 viewport.
     const pageWidth = dimensions.width;
     const pageHeight = dimensions.height;
-    const page = document.addPage([pageWidth, pageHeight]);
+    const page = out.addPage([pageWidth, pageHeight]);
     page.drawImage(image, { x: 0, y: 0, width: pageWidth, height: pageHeight });
   } finally { canvas.width = 0; canvas.height = 0; }
 }
@@ -634,12 +635,41 @@ async function loadSourceForCopy(pdfLib) {
 }
 
 async function appendOrganizedPage(out, item, sourceDoc, pdfLib) {
-  if (item.type === "image") await addImagePage(out, item, pdfLib);
-  else if (item.crop) await addCroppedPdfPage(out, item, pdfLib);
+  if (item.type === "image") await addImagePage(out, item);
+  else if (item.crop) await addCroppedPdfPage(out, item);
   else if (sourceDoc) {
     const [page] = await out.copyPages(sourceDoc, [item.index]);
     addRotatedPage(out, page, item, pdfLib);
   } else await addRenderedPdfPage(out, item);
+}
+
+// Which pages cannot keep a text layer. A cropped page has to be rebuilt as a
+// JPEG, and a source pdf-lib cannot open (an encrypted file) puts every PDF
+// page on that same path. copyPages is the only lossless route.
+function flattenedCount(items, sourceDoc) {
+  return items.filter((item) => item.type !== "image" && (item.crop || !sourceDoc)).length;
+}
+
+function croppedCount(items) {
+  return items.filter((item) => item.type !== "image" && item.crop).length;
+}
+
+// A page that ends up flattened must not be announced as if it were copied:
+// the rule at the top of office-to-pdf.js. Both flattening paths therefore
+// say what they cost, in the wording unlock-pdf.js already uses.
+const NO_TEXT = "selectable text is not preserved";
+function flattenedNote(count) {
+  if (!count) return "";
+  return count === 1
+    ? ` 1 page was flattened to an image; ${NO_TEXT} on it.`
+    : ` ${count} pages were flattened to images; ${NO_TEXT} on them.`;
+}
+
+function flattenedWarning(count) {
+  if (!count) return "";
+  return count === 1
+    ? ` 1 page will be saved as an image; ${NO_TEXT} on it.`
+    : ` ${count} pages will be saved as images; ${NO_TEXT} on them.`;
 }
 
 async function makePdf(items) {
@@ -649,7 +679,10 @@ async function makePdf(items) {
   const out = await pdfLib.PDFDocument.create();
   for (const item of items) await appendOrganizedPage(out, item, src, pdfLib);
   out.setTitle(sourceFile.name.replace(/\.pdf$/i, ""));
-  return new Blob([await out.save()], { type: "application/pdf" });
+  return {
+    blob: new Blob([await out.save()], { type: "application/pdf" }),
+    flattened: flattenedCount(items, src),
+  };
 }
 
 async function runAction(action) {
@@ -661,14 +694,16 @@ async function runAction(action) {
   try {
     if (action === "save") {
       setStatus("Saving organized PDF…");
-      showResult(await makePdf(pageItems), "organized.pdf");
-      setStatus("Organized PDF is ready to download.", "success");
+      const made = await makePdf(pageItems);
+      showResult(made.blob, "organized.pdf");
+      setStatus(`Organized PDF is ready to download.${flattenedNote(made.flattened)}`, "success");
     } else if (action === "extract") {
       const selected = pageItems.filter((item) => item.selected);
       if (!selected.length) throw new Error("Select at least one page to extract.");
       setStatus("Extracting selected pages…");
-      showResult(await makePdf(selected), "extracted-pages.pdf");
-      setStatus(`${selected.length} page${selected.length === 1 ? "" : "s"} extracted.`, "success");
+      const made = await makePdf(selected);
+      showResult(made.blob, "extracted-pages.pdf");
+      setStatus(`${selected.length} page${selected.length === 1 ? "" : "s"} extracted.${flattenedNote(made.flattened)}`, "success");
     } else {
       setStatus("Splitting pages into individual PDFs…");
       const pdfLib = await loadPdfLib();
@@ -684,7 +719,7 @@ async function runAction(action) {
       }
       const zipped = await zip.generateAsync({ type: "blob" }, (meta) => setStatus(`Packing split files… ${Math.round(meta.percent)}%`));
       showResult(zipped, "split-pages.zip", "zip");
-      setStatus("Split PDFs are ready in one ZIP file.", "success");
+      setStatus(`Split PDFs are ready in one ZIP file.${flattenedNote(flattenedCount(pageItems, src))}`, "success");
     }
   } catch (err) {
     console.error(err);
@@ -696,12 +731,12 @@ async function runAction(action) {
   }
 }
 
-function addRotatedPage(document, page, item, pdfLib) {
+function addRotatedPage(out, page, item, pdfLib) {
   if (item.rotation) {
     const currentRotation = page.getRotation().angle || 0;
     page.setRotation(pdfLib.degrees((currentRotation + item.rotation) % 360));
   }
-  document.addPage(page);
+  out.addPage(page);
 }
 
 extractBtn.addEventListener("click", () => runAction("extract"));

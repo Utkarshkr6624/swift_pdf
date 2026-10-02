@@ -121,7 +121,7 @@ test(
     assert.equal(leftDisabled.wasDisabled, true, "the late control should have been locked");
     assert.equal(leftDisabled.stillDisabled, false, "the late control was never released");
   },
-  { ...BLANK, knownBug: "setToolBusy leaves a control created between two overlapping calls disabled forever" }
+  { ...BLANK }
 );
 
 test(
@@ -152,6 +152,72 @@ test(
     assert.match(shown.status, /ready/i);
     assert.match(shown.statusKind, /success/);
     assert.ok(shown.url.startsWith("blob:"), "the result should be a local blob URL");
+  },
+  BLANK
+);
+
+test(
+  "a result that is not a PDF is withdrawn rather than offered as a download",
+  async (t) => {
+    // The failure this guards against is a device running out of memory part way
+    // through a large merge: the buffer comes back short, and a short file is not
+    // a PDF. The person used to get that file as a download; now they get a
+    // sentence they can act on and no download at all.
+    await step("a truncated file never keeps its download", async () => {
+      const outcome = await t.page.evaluate(async () => {
+        // What a device out of memory actually returns: the file starts like a
+        // PDF and then stops, well past any size worth checking, with no trailer.
+        const enc = new TextEncoder();
+        const body = "%PDF-1.4\n" + "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n" + "x".repeat(200000);
+        showResult(new Blob([enc.encode(body)], { type: "application/pdf" }), "merged.pdf");
+        await new Promise((r) => setTimeout(r, 300));
+        const bar = document.getElementById("resultBar");
+        return {
+          size: body.length,
+          hidden: bar.hidden,
+          url: bar._resultUrl,
+          status: document.getElementById("status").textContent,
+          kind: document.getElementById("status").className,
+        };
+      });
+      assert.ok(outcome.size > 32, "the sample has to be big enough to be worth checking");
+      assert.equal(outcome.hidden, true, "the result bar should be taken down");
+      assert.equal(outcome.url, null, "the blob URL should be released, not left for a download");
+      assert.match(outcome.status, /out of memory|incomplete|will not open/i);
+      assert.match(outcome.kind, /error/);
+    });
+
+    await step("a whole file keeps its download", async () => {
+      const outcome = await t.page.evaluate(async () => {
+        const body = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\nstartxref\n0\n%%EOF\n";
+        showResult(new Blob([new TextEncoder().encode(body)], { type: "application/pdf" }), "merged.pdf");
+        await new Promise((r) => setTimeout(r, 300));
+        const bar = document.getElementById("resultBar");
+        return { hidden: bar.hidden, url: bar._resultUrl, status: document.getElementById("status").textContent };
+      });
+      assert.equal(outcome.hidden, false, "a valid PDF should keep its download");
+      assert.ok(outcome.url && outcome.url.startsWith("blob:"));
+      assert.match(outcome.status, /ready/i);
+    });
+
+    await step("a file that is not a PDF to begin with is caught too", async () => {
+      const outcome = await t.page.evaluate(async () => {
+        showResult(new Blob([new Uint8Array(4096)], { type: "application/pdf" }), "merged.pdf");
+        await new Promise((r) => setTimeout(r, 300));
+        return { hidden: document.getElementById("resultBar").hidden };
+      });
+      assert.equal(outcome.hidden, true, "4096 zero bytes are not a PDF and should not be offered");
+    });
+
+    await step("a ZIP is left alone, because it is not a PDF", async () => {
+      const outcome = await t.page.evaluate(async () => {
+        const zip = new Blob([new TextEncoder().encode("PK\u0003\u0004rest of the archive")], { type: "application/zip" });
+        showResult(zip, "pages.zip", "zip");
+        await new Promise((r) => setTimeout(r, 300));
+        return { hidden: document.getElementById("resultBar").hidden };
+      });
+      assert.equal(outcome.hidden, false, "the check is about PDFs only");
+    });
   },
   BLANK
 );

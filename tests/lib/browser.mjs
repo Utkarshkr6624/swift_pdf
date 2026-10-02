@@ -3,13 +3,15 @@
 const VIEWPORT = { width: 1280, height: 900 };
 
 // The only third parties the site is allowed to talk to, and only ever for
-// their own static files: the PDF/ZIP libraries and the web fonts.
+// their own static files: the PDF/ZIP libraries. The web fonts used to sit
+// here too and are deliberately not on the list any more — they are served
+// from assets/, and leaving the old Google Fonts hosts in would mean a pasted
+// <link> went straight through this check again. An allowlist only works as a
+// tripwire while it is as short as the truth allows.
 const THIRD_PARTY_ASSET_HOSTS = [
   "https://cdnjs.cloudflare.com/",
   "https://unpkg.com/",
   "https://cdn.jsdelivr.net/",
-  "https://fonts.googleapis.com/",
-  "https://fonts.gstatic.com/",
 ];
 
 function allowedOrigin(url, origin) {
@@ -58,9 +60,9 @@ export async function newPage(browser, { origin, blockCdn, failOnPageError = tru
     requests,
     url: (path) => origin + path,
 
-    // Everything the browser sends must be either the page's own static assets,
-    // the CDN library hosts, or the web font host that styles.css links. Any
-    // other origin is somewhere a user's file could have gone.
+    // Everything the browser sends must be either the page's own static assets
+    // or one of the CDN library hosts. Any other origin is somewhere a user's
+    // file could have gone.
     foreignRequests() {
       return requests.filter((r) => !allowedOrigin(r.url, origin));
     },

@@ -17,6 +17,7 @@ const TYPES = {
   ".jpg": "image/jpeg",
   ".ico": "image/x-icon",
   ".webmanifest": "application/manifest+json",
+  ".woff2": "font/woff2",
 };
 
 export async function startServer(rootDir) {

@@ -96,10 +96,19 @@ convertBtn.addEventListener("click", async () => {
   setStatus("Converting…");
 
   try {
-    const pages = [];
-    for (const item of strip.items) pages.push(await toJpegPage(item.file, item.crop));
-    const bytes = buildPdf(pages);
-    const blob = new Blob([bytes], { type: "application/pdf" });
+    const items = strip.items;
+    // Each page is encoded, appended and released before the next picture is
+    // opened, so what is held at once is the finished PDF plus one photograph -
+    // rather than every photograph, and then every photograph again inside the
+    // finished PDF. buildPdf() cannot do that: it needs every page in hand
+    // before it writes the first byte of the cross-reference table.
+    const writer = createStreamingPdfWriter();
+    for (let i = 0; i < items.length; i++) {
+      setStatus(`Converting… ${i + 1} of ${items.length}`);
+      const page = await toJpegPage(items[i].file, items[i].crop);
+      writer.addPage(page.bytes, page.w, page.h);
+    }
+    const blob = new Blob([writer.finish()], { type: "application/pdf" });
     showResult(blob, "swiftpdf.pdf");
   } catch (err) {
     console.error(err);

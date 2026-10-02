@@ -12,6 +12,14 @@ const QUALITY = {
   high: { scale: 2.0, jpeg: 0.85, label: "Best quality" },
 };
 let quality = "medium";
+
+// Every page leaves this tool as a picture, so the copy gives up the one thing a
+// picture cannot do. Nothing about the finished file shows that, so the line that
+// describes the finished file has to say it. This is the sentence compressPdfBytes
+// already returns as a warning (pdf-core.js), reused rather than reworded, so
+// every SwiftPDF path into a compressed PDF tells the user the same thing.
+const TEXT_COST = "Compressing redraws every page as an image, so the text in the copy is no longer selectable or searchable.";
+
 document.querySelectorAll(".pill").forEach((pill) => {
   pill.addEventListener("click", () => {
     document.querySelectorAll(".pill").forEach((p) => p.classList.remove("selected"));
@@ -176,15 +184,20 @@ compressBtn.addEventListener("click", async () => {
     const from = formatSize(inputSize);
     const to = formatSize(blob.size);
     showResult(blob, "compressed.pdf");
-    document.querySelector(".result-text").textContent =
+    // Whichever way the sizes went, the copy is a picture of the file and not the
+    // file, so all three lines end the same way. This is the result the user is
+    // reading, so the cost is named here rather than only in the intro they have
+    // already scrolled past.
+    const outcome =
       delta > 0
         ? `Done — ${from} → ${to} (saved ${formatSize(delta)}).`
         : delta === 0
           ? `Done — ${from} → ${to}. The copy came out the same size.`
           : `Done — ${from} → ${to}. This PDF is already well compressed, so re-encoding its pages as images made it bigger. The original is the better copy.`;
+    document.querySelector(".result-text").textContent = `${outcome} ${TEXT_COST}`;
     if (delta < 0)
-      setStatus("Re-encoding made this file bigger — it was already well compressed, so keep the original.");
-    else if (delta === 0) setStatus("The compressed copy came out the same size as the original.");
+      setStatus(`Re-encoding made this file bigger — it was already well compressed, so keep the original. ${TEXT_COST}`);
+    else if (delta === 0) setStatus(`The compressed copy came out the same size as the original. ${TEXT_COST}`);
   } catch (err) {
     console.error(err);
     setStatus(explainProcessingError(err, "Compressing this PDF", items[0] && items[0].file.name), "error");

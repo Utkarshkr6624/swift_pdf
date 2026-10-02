@@ -464,17 +464,44 @@ function textRuns(items) {
   const runs = [];
   for (const item of items || []) {
     const str = item && typeof item.str === "string" ? item.str.trim() : "";
-    if (!str) continue;
     const t = Array.isArray(item.transform) ? item.transform : [];
     const x = Number.isFinite(t[4]) ? t[4] : 0;
     const y = Number.isFinite(t[5]) ? t[5] : 0;
     const width = Number.isFinite(item.width) && item.width > 0 ? item.width : 0;
     const height = Number.isFinite(item.height) && item.height > 0 ? item.height : 0;
+    // A run of nothing but spaces is dropped, exactly as before. What matters
+    // is that a run with real characters in it is never dropped: a formula is
+    // drawn as a crowd of one- and two-glyph runs spread over several embedded
+    // fonts, and reading those as though each were a whole word is what turned
+    // an equation into scattered letters.
+    if (!str) continue;
     runs.push({ str, x, y, width, height });
   }
   return runs;
 }
 
+// One run's text followed by the next's, with a space only where the page shows
+// one. Joining every pair with a space is what turned the formula
+// "(x2+y2) = (a+b)/2c" into "( x2 + y2 ) = ( a + b ) / 2c": such an expression is
+// drawn from many small runs, so a space between every pair of them is invented
+// rather than read off the page.
+//
+// A page states how wide its own characters are, and a word space is about half
+// a character at each side of the gap, so a gap narrower than that means two
+// runs are touching and a wider one means there really is a space. Where either
+// side already carries a space of its own, none is added.
+function joinRuns(items, space) {
+  const half = Math.max(0, space) * 0.5;
+  let out = "";
+  let previous = null;
+  for (const item of items) {
+    if (out && !/\s$/.test(out) && !/^\s/.test(item.str)
+        && item.x - (previous.x + previous.width) >= half) out += " ";
+    out += item.str;
+    previous = item;
+  }
+  return out;
+}
 // Items that share a baseline are one visual line. y grows upward, so reading
 // order is a descending sort; within a line it is left to right.
 function lineGroups(runs) {
@@ -504,18 +531,17 @@ function lineGroups(runs) {
 function lineCells(line, space) {
   const limit = Math.max(MIN_CELL_GAP, space * 2);
   const cells = [];
-  let current = "";
-  for (let index = 0; index < line.items.length; index++) {
-    const item = line.items[index];
-    const previous = line.items[index - 1];
+  let current = [];
+  for (const item of line.items) {
+    const previous = current[current.length - 1];
     if (previous && item.x - (previous.x + previous.width) > limit) {
-      cells.push(current.trim());
-      current = "";
+      cells.push(joinRuns(current, space));
+      current = [];
     }
-    current += (current ? " " : "") + item.str;
+    current.push(item);
   }
-  cells.push(current.trim());
-  return cells.filter(Boolean);
+  if (current.length) cells.push(joinRuns(current, space));
+  return cells.map((cell) => cell.trim()).filter(Boolean);
 }
 
 // One page's items turned into blocks: headings, tables and paragraphs in the
@@ -593,7 +619,7 @@ function structureForPage(items) {
   };
 
   for (const line of lines) {
-    const text = line.items.map((item) => item.str).join(" ").replace(/\s+/g, " ").trim();
+    const text = joinRuns(line.items, space).replace(/\s+/g, " ").trim();
     if (!text) continue;
 
     const cells = lineCells(line, space);

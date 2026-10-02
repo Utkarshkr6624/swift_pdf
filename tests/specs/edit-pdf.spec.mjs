@@ -324,7 +324,7 @@ test(
       "the line is announced as edited after the edit was undone"
     );
   },
-  { ...EDIT, knownBug: "an undone edit leaves the text box announcing 'Edited to:' to screen readers" }
+  { ...EDIT }
 );
 
 test(

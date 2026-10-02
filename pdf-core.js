@@ -504,9 +504,17 @@ function createFileStrip({ input, stripEl, accept, toolbar, extraMenu, onChange 
   // Sequential queue so many PDFs render their first page one after another
   let thumbChain = Promise.resolve();
   const thumbDone = new WeakSet();
+  // A thumbnail is a nicety, and it costs the whole file being read and parsed
+  // to produce one 160-pixel image. On a big batch of scans that is most of the
+  // memory the page will ever need, spent before the user has pressed Merge - so
+  // the queue gives up after a while and the rest keep their fallback tile.
+  const MAX_PDF_THUMBS = 40;
+  const MAX_THUMB_BYTES = 24 * 1024 * 1024;
+  let pdfThumbsMade = 0;
 
   function queuePdfThumb(item) {
     if (thumbDone.has(item)) return;
+    if (pdfThumbsMade >= MAX_PDF_THUMBS || item.file.size > MAX_THUMB_BYTES) return;
     thumbDone.add(item);
     thumbChain = thumbChain.then(() => renderPdfThumb(item)).catch(() => {
       // failed (offline or corrupt PDF) — keep the fallback tile
@@ -542,6 +550,7 @@ function createFileStrip({ input, stripEl, accept, toolbar, extraMenu, onChange 
       canvas.height = viewport.height;
       await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
       const blob = await new Promise((res) => canvas.toBlob(res, "image/jpeg", 0.8));
+      pdfThumbsMade += 1;
       if (blob && items.includes(item)) {
         item.url = URL.createObjectURL(blob);
         // Only this one chip changes. Rebuilding the whole strip re-created
@@ -695,6 +704,32 @@ function setToolBusy(busy) {
 }
 
 /* ---------- Result bar (download + preview) ---------- */
+
+// A merge of a lot of files, or a conversion of a lot of images, asks the
+// browser for one very large buffer. When a device runs out of room the buffer
+// comes back short, and a short PDF is not a PDF: the reader still offers a
+// download, the file lands on disk, and it will not open. Nothing downstream can
+// tell, because the caller believes it handed over a finished document.
+//
+// So the bytes are checked before the result bar settles on them. Both ends are
+// read rather than the whole thing - a PDF's header is its first five bytes and
+// its trailer is in the last kilobyte - so this costs nothing on a large file.
+async function assertLooksLikePdf(blob) {
+  if (!blob || typeof blob.arrayBuffer !== "function" || blob.size < 32) return;
+  let header, trailer;
+  try {
+    header = String.fromCharCode(...new Uint8Array(await blob.slice(0, 5).arrayBuffer()));
+    trailer = String.fromCharCode(...new Uint8Array(await blob.slice(Math.max(0, blob.size - 2048)).arrayBuffer()));
+  } catch (err) {
+    return;  // A browser that will not slice a blob will not be told about it.
+  }
+  if (header === "%PDF-" && trailer.includes("%%EOF")) return;
+  throw new RangeError(
+    "This device ran out of memory part way through, so the file that came back is incomplete " +
+    "and will not open. Try again with fewer or smaller files, or close other tabs and retry."
+  );
+}
+
 function hideResultBar() {
   const bar = document.getElementById("resultBar");
   if (!bar) return;
@@ -719,6 +754,21 @@ function showResult(blob, filename, extension = "pdf") {
   if (bar._resultUrl) URL.revokeObjectURL(bar._resultUrl);
   const url = URL.createObjectURL(blob);
   bar._resultUrl = url;
+  if (extension === "pdf") {
+    // The download is offered and withdrawn a moment later if the bytes turn out
+    // not to be a PDF. The check is kept out of the call signature on purpose:
+    // showResult is synchronous and is called straight from a dozen tools, and
+    // awaiting here would put the whole appearance of the bar behind a promise
+    // to read two kilobytes.
+    assertLooksLikePdf(blob).catch((error) => {
+      // A later result has already taken the bar over; leave that one alone.
+      if (bar._resultUrl !== url) return;
+      URL.revokeObjectURL(url);
+      bar._resultUrl = null;
+      bar.hidden = true;
+      setStatus(error.message, "error");
+    });
+  }
   const download = document.getElementById("downloadBtn");
   if (!download) throw new Error("The download button is missing. Reload this page and retry.");
   download.onclick = () => {
@@ -807,8 +857,15 @@ function buildPdf(pages) {
   beginObj(2);
   write(`<< /Type /Pages /Count ${n} /Kids [ ${pages.map((_, i) => `${pageObj(i)} 0 R`).join(" ")} ] >>\nendobj\n`);
 
+  // A page may arrive either with its bytes already decoded or as a data URL.
+  // The decoders upstream stopped producing data URLs, because a base64 string
+  // costs two bytes per character and buildPdf had to decode it straight back
+  // again; the data URL form is kept for the camera and for any caller still
+  // passing one.
+  const imageBytes = (p) => (p.bytes instanceof Uint8Array ? p.bytes : dataUrlBytes(p.dataUrl));
+
   pages.forEach((p, i) => {
-    const jpegBytes = dataUrlBytes(p.dataUrl);
+    const jpegBytes = imageBytes(p);
     // Most image-to-PDF pages use A4; PDF compression can supply original page dimensions.
     const pageW = Number.isFinite(p.pageWidth) && p.pageWidth > 0 ? p.pageWidth : defaultPageW;
     const pageH = Number.isFinite(p.pageHeight) && p.pageHeight > 0 ? p.pageHeight : defaultPageH;
@@ -846,6 +903,12 @@ function buildPdf(pages) {
 }
 
 /* ---------- Image helpers ---------- */
+
+// An A4 page holds roughly 3500 pixels at 300 dpi, so a longer side beyond that
+// is being shrunk past the point where the extra pixels can still be seen.
+// Capping here rather than higher is what stops a phone photograph being
+// carried into the PDF at several times the size it needs to be.
+const MAX_PAGE_SIDE_PX = 4096;
 function toJpegPage(file, crop) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
@@ -857,7 +920,7 @@ function toJpegPage(file, crop) {
       try {
         URL.revokeObjectURL(url);
         if (!img.naturalWidth || !img.naturalHeight) throw new Error("The image has no readable pixels.");
-        const maxSide = 4096;
+        const maxSide = MAX_PAGE_SIDE_PX;
         let cx = 0, cy = 0, cw = img.naturalWidth, ch = img.naturalHeight;
         if (crop) {
           cx = Math.max(0, Math.min(Number(crop.x) || 0, img.naturalWidth - 1));
@@ -872,12 +935,22 @@ function toJpegPage(file, crop) {
         canvas.width = w; canvas.height = h;
         const ctx = canvas.getContext("2d", { alpha: false });
         if (!ctx) throw new Error("This browser could not prepare the image.");
+        // JPEG has no transparency, so a PNG that has any comes out with a black
+        // background unless the canvas is filled first.
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, w, h);
         ctx.drawImage(img, cx, cy, cw, ch, 0, 0, w, h);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
-        canvas.width = 0; canvas.height = 0;
-        resolve({ dataUrl, w, h });
+        // toBlob rather than toDataURL: a data URL is the JPEG base64-encoded
+        // into a string, and a string costs two bytes per character, so asking
+        // for one holds about two and a half times the picture before buildPdf
+        // has decoded it back into bytes. On a folder of photographs that was
+        // the largest single thing between this tool and finishing.
+        canvas.toBlob((blob) => {
+          canvas.width = 0; canvas.height = 0;
+          const failed = () => reject(new Error(`Could not convert ${file.name}. This image format may not be supported by your browser.`));
+          if (!blob) { failed(); return; }
+          blob.arrayBuffer().then((buffer) => resolve({ bytes: new Uint8Array(buffer), w, h }), failed);
+        }, "image/jpeg", 0.92);
       } catch (err) {
         URL.revokeObjectURL(url);
         reject(new Error(`Could not convert ${file.name}. This image format may not be supported by your browser.`));

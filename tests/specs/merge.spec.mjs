@@ -55,6 +55,23 @@ async function readMerged(t) {
   });
 }
 
+// The wording this suite treats as telling someone their text has gone - the same
+// shape convert.spec.mjs uses for the compression note on the converter page.
+const TEXT_IS_GONE = /selectable|searchable|searched for|copied/i;
+
+// What a person reads once the merge finishes: the result bar and the status line.
+// Deliberately not the whole document - merge-pdf.html already carries the warning
+// in the note beside the compression checkbox, and that note is on screen whether or
+// not the merge was compressed, so reading the page would let the delivered result
+// say nothing at all and still pass.
+const readDelivery = (t) =>
+  t.page
+    .evaluate(() => ({
+      result: document.getElementById("resultBar")?.textContent || "",
+      status: document.getElementById("status")?.textContent || "",
+    }))
+    .then(({ result, status }) => "RESULT BAR: " + result + " | STATUS LINE: " + status);
+
 test(
   "merging keeps every page, in the order the strip is in",
   async (t) => {
@@ -160,7 +177,7 @@ test(
     assert.match(message, /broken\.pdf/, `the message should name the damaged file, got: ${message}`);
     assert.doesNotMatch(message, /“good\.pdf”/, "the message blames a file that was fine");
   },
-  { ...MERGE, knownBug: "a merge failure is reported against the first file, not the one that failed" }
+  { ...MERGE }
 );
 
 // A real .docx, built in the browser with the site's own JSZip, so nothing here
@@ -353,6 +370,65 @@ test(
   MERGE
 );
 
+// Compressing a merge redraws every page as a JPEG, so the document that comes out
+// has no text in it. Left alone, pdf-lib copies the pages across untouched and the
+// text is still there. Both halves are asserted here, because a warning bolted on
+// unconditionally is worse than none: a merge that kept its text must not claim that
+// it lost it, or people will stop believing the tool when it says the opposite.
+test(
+  "a compressed merge admits the text is gone, and a plain merge keeps its text without claiming otherwise",
+  async (t) => {
+    await addFiles(t, "#fileInput", [
+      makeNamedPdfFile("alpha.pdf", { pages: 2 }),
+      makeNamedPdfFile("beta.pdf", { pages: 1 }),
+    ]);
+    await t.page.waitForFunction(() => document.querySelectorAll(".file-strip .chip").length === 2);
+    await waitForThumbnails(t.page);
+
+    await step("without compression the text survives, and the result claims nothing", async () => {
+      assert.equal(await t.page.locator("#compressToggle").isChecked(), false);
+      await mergeNow(t);
+
+      const merged = await readMerged(t);
+      assert.equal(merged.numPages, 3, "two pages plus one page should be three pages");
+      assert.deepEqual(
+        merged.text,
+        ["alpha page 1", "alpha page 2", "beta page 1"],
+        "a plain merge threw the text away"
+      );
+
+      const said = await readDelivery(t);
+      assert.doesNotMatch(
+        said,
+        /text|selectable|searchable/i,
+        `an uncompressed merge keeps its text and must not say otherwise: ${said}`
+      );
+    });
+
+    await step("with compression the text really is gone, and the result says so", async () => {
+      await t.page.locator("#compressToggle").check();
+      await mergeNow(t);
+
+      const merged = await readMerged(t);
+      assert.equal(merged.numPages, 3, "compression must not drop or duplicate pages");
+      assert.deepEqual(
+        merged.text,
+        ["", "", ""],
+        "the compressed pages still carry a text layer"
+      );
+
+      const said = await readDelivery(t);
+      assert.match(
+        said,
+        TEXT_IS_GONE,
+        `the compressed merge threw the text layer away and never told the reader: ${said}`
+      );
+    });
+  },
+  MERGE
+);
+
+
 test(
   "a merge never sends anything off the device",
   async (t) => {
@@ -394,4 +470,50 @@ test(
     assert.equal(await t.page.locator("#resultBar").isVisible(), false);
   },
   { ...MERGE, blockCdn: true, pageErrors: false }
+);
+
+test(
+  "a merge of many files still comes back as a whole, readable PDF",
+  async (t) => {
+    // The complaint this answers is a merge of a lot of PDFs handing back
+    // something that is not a PDF at all. The pages here are small, so what is
+    // being checked is the shape of the result at a batch size well past the
+    // few-file case: every page present, in order, and a file that opens.
+    const count = 24;
+    const pagesEach = 3;
+    const files = Array.from({ length: count }, (_, i) =>
+      makeNamedPdfFile(`part${String(i).padStart(2, "0")}.pdf`, { pages: pagesEach })
+    );
+    await addFiles(t, "#fileInput", files);
+    await t.page.waitForFunction(
+      (n) => document.querySelectorAll(".file-strip .chip").length === n,
+      count,
+      { timeout: 60000 }
+    );
+    await mergeNow(t);
+
+    await step("every page is there, in the order the strip is in", async () => {
+      const merged = await readMerged(t);
+      assert.equal(merged.numPages, count * pagesEach, "a page went missing from the merge");
+      const order = merged.text.map((line) => line.split(" ")[0]);
+      const expected = Array.from({ length: count }, (_, i) =>
+        Array.from({ length: pagesEach }, () => `part${String(i).padStart(2, "0")}`)
+      ).flat();
+      assert.deepEqual(order, expected, "the pages came back in the wrong order");
+    });
+
+    await step("the bytes are a PDF, not a short buffer", async () => {
+      const shape = await t.page.evaluate(async () => {
+        const bar = document.getElementById("resultBar");
+        const bytes = new Uint8Array(await (await fetch(bar._resultUrl)).arrayBuffer());
+        return {
+          header: String.fromCharCode(...bytes.slice(0, 5)),
+          trailer: String.fromCharCode(...bytes.slice(Math.max(0, bytes.length - 64))),
+        };
+      });
+      assert.equal(shape.header, "%PDF-", "the result does not begin like a PDF");
+      assert.match(shape.trailer, /%%EOF/, "the result has no trailer, so it is incomplete");
+    });
+  },
+  MERGE
 );

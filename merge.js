@@ -19,6 +19,14 @@ const COMPRESS_QUALITY = {
 };
 let compressLevel = "medium";
 
+// What compressing costs, said every time the saving is reported rather than only
+// on the page beside the switch. It is the shared helper's own sentence (the one in
+// pdf-core.js): this page does not go through that helper — see
+// compressMergedPdfBytes — but a reader should not have to guess which of two copies
+// of the same site they are looking at.
+const COMPRESS_TEXT_NOTE =
+  "Compressing redraws every page as an image, so the text in the copy is no longer selectable or searchable.";
+
 if (compressToggle && compressQuality) {
   compressToggle.addEventListener("change", () => {
     compressQuality.hidden = !compressToggle.checked;
@@ -144,10 +152,21 @@ convertBtn.addEventListener("click", async () => {
         console.warn("Using rendered-page fallback for", item.file.name, vectorError);
         await appendRenderedPdf(merged, bytes, pdfLib, item.file.name);
         flattenedFiles.push(item.file.name);
+      } finally {
+        // The copy is in the merged document now. Letting go of the source here
+        // rather than at the end of the loop is the difference between holding
+        // one file's bytes at a time and holding all of them, which on a large
+        // merge is the difference between finishing and the tab being killed.
+        bytes = null;
       }
       setStatus("Merging… added " + added);
+      // Hand the turn back between files. On a long merge this is what lets the
+      // browser collect what the last file released and keeps the tab
+      // responsive, so a device that is close to its limit can still show the
+      // person what is going wrong instead of vanishing.
+      await new Promise((resolve) => setTimeout(resolve, 0));
     }
-    const mergedBytes = await merged.save();
+    let mergedBytes = await merged.save();
     const inputSize = items.reduce((total, it) => total + it.file.size, 0);
     let bytes = mergedBytes;
     let compressed = false;
@@ -155,12 +174,17 @@ convertBtn.addEventListener("click", async () => {
     if (compressToggle && compressToggle.checked) {
       setStatus("Compressing the merged PDF…");
       const q = COMPRESS_QUALITY[compressLevel] || COMPRESS_QUALITY.medium;
-      bytes = await compressPdfBytes(mergedBytes, pdfLib, q, merged.getPageCount());
+      bytes = await compressMergedPdfBytes(mergedBytes, pdfLib, q, merged.getPageCount());
       compressed = true;
       const saved = Math.max(0, mergedBytes.length - bytes.length);
-      note = saved > 0
-        ? ` Compressed at ${q.label} quality — ${formatSize(mergedBytes.length)} → ${formatSize(bytes.length)}, saving ${formatSize(saved)}.`
-        : ` Compressed at ${q.label} quality, but the file was already lean, so it is about the same size.`;
+      const change = saved > 0
+        ? `Compressed at ${q.label} quality — ${formatSize(mergedBytes.length)} → ${formatSize(bytes.length)}, saving ${formatSize(saved)}.`
+        : `Compressed at ${q.label} quality, but the file was already lean, so it is about the same size.`;
+      // The saving is only an honest headline if what it costs is said in the same
+      // breath, so the disclosure rides along with every branch that reports a size.
+      // The uncompressed branches below never reach this line and keep their text.
+      note = ` ${change} ${COMPRESS_TEXT_NOTE}`;
+      mergedBytes = null;
     }
     const blob = new Blob([bytes], { type: "application/pdf" });
     showResult(blob, "merged.pdf");
@@ -287,9 +311,20 @@ async function appendRenderedPdf(target, bytes, pdfLib, filename) {
 // is the only way to make a PDF meaningfully smaller in the browser. Pages are
 // embedded one at a time and the canvas is released straight after, so memory
 // stays flat instead of holding every rendered page at once.
-async function compressPdfBytes(mergedBytes, pdfLib, q, totalPages) {
+//
+// Deliberately NOT named compressPdfBytes. pdf-core.js already declares a function
+// by that name, and merge.js is a classic script loaded after it, so a second
+// declaration silently replaced the shared one for every script on the page — which
+// is how this page's compression ended up saying nothing about the text it throws
+// away. Anything that wants the shared helper reaches it through
+// window.SwiftPdfCompress instead, which no page can shadow.
+async function compressMergedPdfBytes(mergedBytes, pdfLib, q, totalPages) {
   const pdfjs = await loadPdfJs();
-  const doc = await pdfjs.getDocument({ data: new Uint8Array(mergedBytes.slice(0)) }).promise;
+  // slice() hands pdf.js a buffer of its own that it is free to detach. Wrapping
+  // that in new Uint8Array() copied the whole merged file a second time, which on
+  // a large merge with compression ticked is the difference between fitting and
+  // not.
+  const doc = await pdfjs.getDocument({ data: mergedBytes.slice() }).promise;
   const out = await pdfLib.PDFDocument.create();
   try {
     for (let pageNo = 1; pageNo <= doc.numPages; pageNo++) {

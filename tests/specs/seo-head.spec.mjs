@@ -1,6 +1,6 @@
 // The <head> is out of bounds for everyone working on this site. These tests
 // are the tripwire: they only read it, and they fail the moment it moves.
-import { readdir, readFile } from "node:fs/promises";
+import { access, readdir, readFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { dirname, join, resolve } from "node:path";
@@ -37,6 +37,48 @@ const headOf = (html) => {
   // moved, reworded, reordered or dropped — still shows up as a difference.
   return html.slice(open, close + "</head>".length).replace(/\r\n/g, "\n");
 };
+
+// Every page the site ships, found on disk instead of listed here, so a page
+// added later is covered without anyone remembering to add it to PAGES too.
+const everyPageFile = async () =>
+  (await readdir(repoRoot)).filter((f) => f.endsWith(".html")).sort();
+
+const linksIn = (html) =>
+  [...(headOf(html) || "").matchAll(/<link\b[^>]*>/gi)].map((m) => m[0]);
+
+const hrefOf = (tag) => (tag.match(/href="([^"]*)"/i) || [])[1] || "";
+
+const hostOf = (href) => {
+  try {
+    return new URL(href).hostname.toLowerCase();
+  } catch {
+    return href.toLowerCase();
+  }
+};
+
+const hasScheme = (href) => /^[a-z][a-z0-9+.-]*:/i.test(href);
+
+// Google is not a host this site is allowed to reach. The two font hosts are
+// gone because the font files are served from assets/, and nothing else on this
+// site has any business talking to Google either.
+const isGoogle = (href) => {
+  const host = hostOf(href);
+  return host === "google" || host.endsWith(".google") ||
+    host.includes("googleapis") || host.includes("gstatic");
+};
+
+// The two font hosts named outright, so a bare mention in a comment, a CSS
+// @import or a hand-written URL is caught even with no link tag to parse.
+const GOOGLE_FONT_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com"];
+
+// A font the site serves itself: a local path under this origin rather than an
+// absolute URL pointing somewhere else.
+const localFontHrefs = (html) =>
+  linksIn(html)
+    .filter((tag) => /rel="(?:stylesheet|preload)"/i.test(tag))
+    .map(hrefOf)
+    .filter((href) => href && !hasScheme(href) && !href.startsWith("//") && /font/i.test(href))
+    .map((href) => href.split(/[?#]/)[0]);
 
 const dim = (text) => (process.stdout.isTTY ? `[90m${text}[0m` : text);
 
@@ -100,6 +142,96 @@ test(
         assert.ok(canonical.endsWith("/" + page), page + " canonical points somewhere else: " + canonical);
       }
     });
+
+    await step("a page warms the CDN connection only when it can reach it", async () => {
+      // pdf.js, pdf-lib and JSZip are only fetched when a tool is first used, so
+      // the connection to the CDN is opened while the page is still loading
+      // instead of on the click. A page that pulls in pdf-core.js can reach the
+      // CDN; a content page never can and should not pay for the handshake.
+      // Google is not on that list. The fonts are served from this origin now,
+      // so a preconnect to a Google host opens a connection nothing ever uses,
+      // and it is the exact thing that would put a third party back in the path.
+      for (const page of PAGES) {
+        const html = await readFile(join(repoRoot, page), "utf8");
+        const preconnects = linksIn(html)
+          .filter((tag) => /rel="preconnect"/i.test(tag))
+          .map(hrefOf);
+        const google = preconnects.filter(isGoogle);
+        assert.deepEqual(google, [], page + " preconnects to a Google host: " + google.join(", "));
+        const cdn = preconnects.filter((href) => hostOf(href) === "cdnjs.cloudflare.com");
+        const usesCdn = /<script src="pdf-core\.js"/.test(html);
+        assert.equal(
+          cdn.length,
+          usesCdn ? 1 : 0,
+          page + (usesCdn ? " loads pdf-core.js but does not preconnect exactly once to the CDN" : " never reaches the CDN but still preconnects to it")
+        );
+      }
+    });
+
+    await step("nothing in the site points at a Google host", async () => {
+      // The web fonts are served from this origin. Any surviving reference to
+      // either font host - a stylesheet link, a preconnect, an @import, a
+      // leftover comment - is a third party back in the load path, and it hands
+      // that third party the reader's IP address and the list of pages visited.
+      // styles.css is read as well as the pages, because an @import there would
+      // bring the dependency back without a single link tag on any page.
+      const files = [...(await everyPageFile()), "styles.css"];
+      for (const file of files) {
+        const text = await readFile(join(repoRoot, file), "utf8");
+        const lower = text.toLowerCase();
+        for (const host of GOOGLE_FONT_HOSTS) {
+          const at = lower.indexOf(host);
+          assert.equal(at, -1, file + " line " + (lower.slice(0, at).split("\n").length) +
+            " still names " + host + ": " + text.slice(at - 40, at + host.length + 20).replace(/\s+/g, " "));
+        }
+        for (const url of text.match(/https?:\/\/[^\s"'<>)]+/g) || []) {
+          assert.ok(!isGoogle(url), file + " still loads " + url);
+        }
+      }
+    });
+
+    await step("every page takes its fonts from this origin", async () => {
+      // Self-hosting is only true if the file the browser fetches is served by
+      // this site. That is checked on every page in the repository rather than
+      // on the SEO list, so a page added later cannot quietly ship without the
+      // stylesheet that carries the fonts, or with a font link of its own that
+      // the other pages do not have.
+      const css = await readFile(join(repoRoot, "styles.css"), "utf8");
+      const faces = [...css.matchAll(/@font-face\s*\{([^}]*)\}/gi)].map((m) => m[1]);
+      assert.ok(faces.length > 0, "styles.css declares no @font-face, so the site's own fonts would never load");
+      const faceFiles = new Set();
+      for (const face of faces) {
+        for (const [, src] of face.matchAll(/url\(\s*["']?([^"')]+)["']?\s*\)/gi)) {
+          assert.ok(!hasScheme(src) && !src.startsWith("//"), "an @font-face still loads " + src + " from another origin");
+          assert.ok(!isGoogle(src), "an @font-face still loads " + src);
+          assert.ok(/font/i.test(src), "an @font-face points at " + src + ", which is not one of the font files");
+          faceFiles.add(src);
+        }
+      }
+      const missing = [];
+      for (const src of faceFiles) {
+        await access(join(repoRoot, src)).catch(() => missing.push(src));
+      }
+      assert.deepEqual(missing, [], "font files styles.css points at that are not in the repository");
+
+      const byPage = new Map();
+      for (const page of await everyPageFile()) {
+        const html = await readFile(join(repoRoot, page), "utf8");
+        const styles = linksIn(html).filter((tag) => /rel="stylesheet"/i.test(tag)).map(hrefOf);
+        assert.ok(styles.includes("styles.css"), page + " does not link styles.css, so it gets none of the site's fonts");
+        for (const href of styles.filter((h) => hasScheme(h) || h.startsWith("//"))) {
+          assert.fail(page + " loads its stylesheet from another origin: " + href);
+        }
+        byPage.set(page, localFontHrefs(html).sort().join(", "));
+      }
+      for (const [page, list] of byPage) {
+        const odd = [...byPage].find(([other]) => other !== page && byPage.get(other) !== list);
+        if (odd) {
+          assert.fail("the font link is not the same everywhere: " + page + " loads [" + list +
+            "] but " + odd[0] + " loads [" + odd[1] + "]");
+        }
+      }
+    });
   }
 );
 
@@ -108,7 +240,9 @@ test(
   async (t) => {
     const report = [];
     for (const page of PAGES) {
-      await t.page.goto(t.url("/" + page), { waitUntil: "domcontentloaded" });
+      const seen = t.requests.length;
+      await t.page.goto(t.url("/" + page), { waitUntil: "load" });
+      const fetched = t.requests.slice(seen).map((r) => r.url);
       const found = await t.page.evaluate(() => ({
         title: document.title,
         titles: document.querySelectorAll("head > title").length,
@@ -133,12 +267,17 @@ test(
         viewport: document.querySelectorAll('meta[name="viewport"]').length,
         lang: document.documentElement.lang,
       }));
-      report.push({ page, found });
+      report.push({ page, found, fetched });
     }
 
-    for (const { page, found } of report) {
+    for (const { page, found, fetched } of report) {
       await step(page, async () => {
         const problems = [];
+        // Only the font hosts here. Chromium opens its own connection to a Google
+        // ad-measurement endpoint that no page asks for, and that is the browser
+        // talking, not the site - so the guard is about what the markup chooses.
+        const google = fetched.filter((url) => GOOGLE_FONT_HOSTS.some((host) => url.includes(host)));
+        if (google.length) problems.push(`loaded a font from Google: ${[...new Set(google)].join(", ")}`);
         if (found.titles !== 1) problems.push(`${found.titles} <title> tags`);
         if (found.title.trim().length <= 5) problems.push(`title is too short: "${found.title}"`);
         if (found.canonical !== 1) problems.push(`${found.canonical} canonical links`);
