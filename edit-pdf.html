@@ -23,7 +23,6 @@
     <div class="page-head container"><a class="back" href="index.html">&larr; All tools</a><h1>Edit PDF Text</h1><p>Open a PDF, click any text on the page, and replace it in place &mdash; keeping the original font family, size, and position as closely as the PDF format allows. Everything runs in your browser, so your file stays on your device.</p></div>
     <div class="container organizer-container">
       <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Choose a PDF or drop it here"><h3>Select a PDF</h3><p>or drag &amp; drop it here</p><button class="btn btn-primary" id="choosePdfBtn" type="button">Choose PDF</button><input id="fileInput" type="file" accept="application/pdf,.pdf" hidden /></div>
-      <div id="fileStrip"></div>
 
       <div id="editorShell" class="ed-shell" hidden>
         <div class="ed-toolbar">
@@ -32,7 +31,7 @@
             <!-- Visible copy is a tight "1 / 1" badge; the full sentence lives in aria-label so screen readers still hear it. -->
             <span id="pageCounter" role="status" aria-live="polite" aria-label="Page 1 of 1">1 / 1</span>
             <button class="btn btn-ghost ed-page-btn" id="pageNext" type="button" aria-label="Next page" aria-pressed="false">Next &#8594;</button>
-            <div class="ed-page-chips" id="pageChips" role="group" aria-label="Jump to a page"></div>
+            <div id="pageChips" role="group" aria-label="Jump to a page"></div>
           </div>
           <div class="ed-toolbar-group ed-zoom" role="group" aria-label="Zoom">
             <button class="btn btn-ghost ed-page-btn" id="zoomOut" type="button" aria-label="Zoom out">&minus;</button>
@@ -46,7 +45,7 @@
           </div>
         </div>
 
-        <div class="ed-grid" id="editorGrid">
+        <div id="editorGrid">
           <div class="ed-stage" id="edStage" role="region" tabindex="0" aria-label="Page preview, scroll to see the whole page">
             <div class="ed-canvas-wrap" id="pageCanvasWrap">
               <canvas id="pageCanvas" width="1" height="1" role="img" aria-label="The current PDF page"></canvas>

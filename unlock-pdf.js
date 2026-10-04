@@ -8,7 +8,6 @@ const passwordInput = document.getElementById("openPassword");
 wireDropzone(dropzone, fileInput, (files) => {
   strip.clear();
   strip.addFiles(Array.from(files).slice(0, 1));
-  hideResultBar();
 });
 wireStartAnother(fileInput, () => { strip.clear(); passwordInput.value = ""; });
 

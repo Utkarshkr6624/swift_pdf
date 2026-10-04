@@ -283,14 +283,14 @@
   const MATH_TEXT_FALLBACK = {
     "ℓ": "l", "ℏ": "h", "ℜ": "R", "ℑ": "I", "ℵ": "infinity",
     "⌈": "[", "⌉": "]", "⌊": "[", "⌋": "]",
-    "⊤": "T", "⊥": "|", "⊦": "|-", "⊣": "-|",
+    "⊤": "T", "⊦": "|-", "⊣": "-|",
     "≜": ":=", "≝": ":=", "≟": "=?",
     "⋮": "...", "⋯": "...", "⁝": "...",
     "′": "'", "″": "''", "‴": "'''",
     "∙": "*", "⋅": "*", "∗": "*",
     "⁄": "/", "∕": "/",
     "−": "-", "–": "-", "—": "-",
-    "　": " ", "": "",
+    "　": " ",
     "ℝ": "R", "ℕ": "N", "ℤ": "Z", "ℚ": "Q", "ℂ": "C",
     "∘": "o", "◎": "O", "⊛": "*", "⊚": "O",
   };
@@ -399,7 +399,7 @@
     const out = [];
     if (!node) return out;
     for (const child of node.children) {
-      if (!name || localName(child) === name) out.push(child);
+      if (localName(child) === name) out.push(child);
     }
     return out;
   }
@@ -542,7 +542,7 @@
       throw userError(name,
         `is a ZIP archive holding ${directory.entries} files, far more than a Word, PowerPoint or Excel document should contain, so it was not opened.`);
     }
-    let declared = 0;
+    let declared;
     try {
       declared = sumUncompressed(bytes, directory);
     } catch (err) {
@@ -1397,7 +1397,7 @@
     0xba: "≈", 0xbb: "≡", 0xbc: "…", 0xbd: "∴", 0xbe: "∵", 0xbf: "∝",
     0xc0: "↔", 0xc3: "←", 0xc4: "↔", 0xc5: "↑", 0xc9: "→", 0xcc: "∪", 0xcd: "⊃",
     0xd0: "→", 0xd1: "↑", 0xd2: "↓", 0xd5: "⊂", 0xd6: "√", 0xdc: "⇒",
-    0xe5: "∑", 0xf2: "∫", 0xf7: "∏", 0xf0: "¬", 0xf1: "∧", 0xf2: "∫",
+    0xe5: "∑", 0xf2: "∫", 0xf7: "∏", 0xf0: "¬", 0xf1: "∧",
     0xe3: "⊆", 0xe9: "⊇", 0xce: "∈", 0xcf: "∉", 0xac: "←", 0xad: "↑",
     0xa0: "∀", 0xa1: "∃", 0x24: "∃", 0x2c: "¬", 0x5e: "⇒", 0x7b: "≡",
     0x41: "Α", 0x42: "Β", 0x47: "Γ", 0x44: "Δ", 0x45: "Ε", 0x5a: "Ζ", 0x48: "Η",

@@ -949,7 +949,6 @@ function shapeFor(target, blocks, title) {
     const slides = [];
     let current = { title: "", blocks: [] };
     let used = 0;
-    let split = 0;
     let widened = 0;
 
     const flush = () => {
@@ -980,7 +979,6 @@ function shapeFor(target, blocks, title) {
       const pieces = isType(block, "table") ? tablePieces(block.rows) : null;
       if (pieces) {
         if (widestRow(rowList(block.rows)) > SLIDE_TABLE_COLUMNS) widened++;
-        if (pieces.length > 1) split++;
         for (const piece of pieces) {
           flush();
           current.blocks.push(piece);
@@ -992,7 +990,6 @@ function shapeFor(target, blocks, title) {
       const weight = blockWeight(block);
       if (used && used + weight > 1) {
         flush();
-        if (weight > 1) split++;
       }
       const text = blockText(block);
       if (weight > 1 && text.length > LONG_PARAGRAPH) {

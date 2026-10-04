@@ -198,14 +198,13 @@ function isOfficeFile(f) {
   return /\.(docx|pptx|xlsx)$/i.test(f.name);
 }
 
-function createFileStrip({ input, stripEl, accept, toolbar, extraMenu, onChange }) {
+function createFileStrip({ stripEl, accept, toolbar, extraMenu, onChange }) {
   let items = []; // { file, url?, isPdf }
   const wrap = document.createElement("div");
   wrap.className = "file-strip-wrap";
   const strip = document.createElement("div");
   strip.className = "file-strip";
   const arrows = document.createElement("div");
-  arrows.className = "strip-arrows";
   const leftBtn = document.createElement("button");
   leftBtn.className = "strip-arrow";
   leftBtn.type = "button";
@@ -1254,4 +1253,4 @@ async function compressPdfBytes(bytes, options = {}) {
 // A page that ships merge.js declares its own compressPdfBytes, and a classic
 // script's later declaration wins, so this namespace is the handle that cannot be
 // overwritten by a page-specific helper.
-window.SwiftPdfCompress = { compressPdfBytes, levels: PDF_COMPRESS_LEVELS };
+window.SwiftPdfCompress = { compressPdfBytes };

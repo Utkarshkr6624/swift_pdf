@@ -19,12 +19,6 @@ export function collect() {
 
 export { assert };
 
-// Fails with a message instead of throwing a bare "expected undefined".
-export function expect(actual, message) {
-  if (!actual) assert.fail(message || "expected a truthy value");
-  return actual;
-}
-
 // Names the case that broke, even when the assertion sits several frames deep
 // inside a helper.
 export async function step(label, fn) {
