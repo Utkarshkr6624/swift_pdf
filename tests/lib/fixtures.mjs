@@ -2,6 +2,7 @@
 // no network. makePdf() writes a real, standards-shaped PDF that pdf-lib,
 // pdf.js and the tools themselves can all read.
 import { Buffer } from "node:buffer";
+import { crc32 } from "node:zlib";
 
 const latin1 = (s) => Buffer.from(s, "latin1");
 
@@ -94,4 +95,43 @@ export function makeBrokenPdfFile(name = "broken.pdf") {
     mimeType: "application/pdf",
     buffer: Buffer.from("%PDF-1.4\nthis is not a pdf body\n%%EOF\n", "latin1"),
   };
+}
+
+// A real ZIP (stored, no compression) holding `entries` of { name, buffer } in
+// the order given, built with node:zlib's CRC so JSZip reads it like any other.
+export function makeZipFile(name, entries) {
+  const local = [];
+  const central = [];
+  let offset = 0;
+  for (const { name: entryName, buffer } of entries) {
+    const nameBytes = Buffer.from(entryName, "utf8");
+    const crc = crc32(buffer);
+    const head = Buffer.alloc(30);
+    head.writeUInt32LE(0x04034b50, 0);
+    head.writeUInt16LE(20, 4);
+    head.writeUInt32LE(crc, 14);
+    head.writeUInt32LE(buffer.length, 18);
+    head.writeUInt32LE(buffer.length, 22);
+    head.writeUInt16LE(nameBytes.length, 26);
+    const dir = Buffer.alloc(46);
+    dir.writeUInt32LE(0x02014b50, 0);
+    dir.writeUInt16LE(20, 4);
+    dir.writeUInt16LE(20, 6);
+    dir.writeUInt32LE(crc, 16);
+    dir.writeUInt32LE(buffer.length, 20);
+    dir.writeUInt32LE(buffer.length, 24);
+    dir.writeUInt16LE(nameBytes.length, 28);
+    dir.writeUInt32LE(offset, 42);
+    local.push(head, nameBytes, buffer);
+    central.push(dir, nameBytes);
+    offset += head.length + nameBytes.length + buffer.length;
+  }
+  const dirBytes = Buffer.concat(central);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(dirBytes.length, 12);
+  end.writeUInt32LE(offset, 16);
+  return { name, mimeType: "application/zip", buffer: Buffer.concat([...local, dirBytes, end]) };
 }

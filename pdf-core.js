@@ -198,6 +198,47 @@ function isOfficeFile(f) {
   return /\.(docx|pptx|xlsx)$/i.test(f.name);
 }
 
+// Windows reports a .zip as application/x-zip-compressed, others as application/zip.
+// An Office file is a ZIP inside too, so it is ruled out by name first.
+function isZipFile(f) {
+  return !isOfficeFile(f) && (/\.zip$/i.test(f.name) || /^application\/(x-)?zip(-compressed)?$/i.test(f.type || ""));
+}
+
+// Opens each ZIP in the list where it stands and keeps the files inside that
+// `keep` accepts, in name order so "2.pdf" comes before "10.pdf". Folders are
+// flattened, and the hidden files macOS adds to every archive are dropped
+// without being counted. A ZIP inside a ZIP is counted as skipped, not opened.
+async function expandZips(list, keep) {
+  const JSZip = await loadJsZip();
+  const files = [];
+  const problems = [];
+  let skipped = 0;
+  for (const f of list) {
+    if (!isZipFile(f)) { files.push(f); continue; }
+    let zip;
+    try { zip = await JSZip.loadAsync(f); }
+    catch (err) {
+      console.warn(err);
+      problems.push(`${f.name} could not be opened. It may be damaged or password-protected.`);
+      continue;
+    }
+    const entries = Object.values(zip.files)
+      .filter((e) => !e.dir && !/(^|\/)(__MACOSX\/|\.)/.test(e.name))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    let kept = 0;
+    for (const entry of entries) {
+      const name = entry.name.split("/").pop();
+      const probe = { name, type: "" };
+      if (!keep(probe)) { skipped++; continue; }
+      const blob = await entry.async("blob");
+      files.push(new File([blob], name, { type: isPdfFile(probe) ? "application/pdf" : "" }));
+      kept++;
+    }
+    if (!kept) problems.push(`${f.name} has no PDF, Word, PowerPoint or Excel files in it.`);
+  }
+  return { files, skipped, problems };
+}
+
 function createFileStrip({ stripEl, accept, toolbar, extraMenu, onChange }) {
   let items = []; // { file, url?, isPdf }
   const wrap = document.createElement("div");
@@ -469,9 +510,21 @@ function createFileStrip({ stripEl, accept, toolbar, extraMenu, onChange }) {
   document.addEventListener("click", docClickHandler);
 
   function addFiles(list) {
-    let skipped = 0;
+    // Copied now: the input this came from is emptied as soon as the handler returns.
+    const files = Array.from(list || []);
+    if (accept !== "pdf-office" || !files.some(isZipFile)) return addToStrip(files, 0, []);
+    setToolBusy(true);
+    setStatus("Opening ZIP file…");
+    expandZips(files, matches)
+      .then(({ files: opened, skipped, problems }) => { setStatus(""); addToStrip(opened, skipped, problems); })
+      // The ZIP engine did not load: the other files in the same drop still go in.
+      .catch((err) => { console.error(err); addToStrip(files.filter((f) => !isZipFile(f)), 0, [err.message]); })
+      .finally(() => setToolBusy(false));
+  }
+
+  function addToStrip(list, skipped, problems) {
     const fromIndex = items.length;
-    if (list && list.length) hideResultBar();
+    if (list.length) hideResultBar();
     for (const f of list) {
       if (matches(f)) {
         const item = { file: f, url: makesThumb() ? URL.createObjectURL(f) : null, crop: null };
@@ -480,7 +533,9 @@ function createFileStrip({ stripEl, accept, toolbar, extraMenu, onChange }) {
       }
       else skipped++;
     }
-    if (skipped) flashStatus(`${skipped} file(s) skipped — supported types: ${acceptLabel()}.`, "error");
+    const notes = problems.slice();
+    if (skipped) notes.push(`${skipped} file(s) skipped — supported types: ${acceptLabel()}.`);
+    if (notes.length) flashStatus(notes.join(" "), "error");
     render({ rects: null, fromIndex });
   }
 
@@ -496,7 +551,7 @@ function createFileStrip({ stripEl, accept, toolbar, extraMenu, onChange }) {
   function makesThumb() { return accept === "image"; }
   function acceptLabel() {
     if (accept === "pdf") return "PDF files";
-    if (accept === "pdf-office") return "PDF files, or Word, PowerPoint and Excel files (.docx, .pptx, .xlsx)";
+    if (accept === "pdf-office") return "PDF files, Word, PowerPoint and Excel files (.docx, .pptx, .xlsx), or a ZIP of them";
     return "image formats supported by your browser";
   }
 

@@ -1,7 +1,7 @@
 // Merge PDF, end to end: real files, the real CDN libraries, a real download.
 // These are the checks that only pass by actually running the thing.
 import { test, assert, step } from "../lib/harness.mjs";
-import { makePdfFile, makeNamedPdfFile, makeBrokenPdfFile } from "../lib/fixtures.mjs";
+import { makePdfFile, makeNamedPdfFile, makeBrokenPdfFile, makeZipFile, makeTextFile } from "../lib/fixtures.mjs";
 import {
   addFiles,
   waitForThumbnails,
@@ -514,6 +514,69 @@ test(
       assert.equal(shape.header, "%PDF-", "the result does not begin like a PDF");
       assert.match(shape.trailer, /%%EOF/, "the result has no trailer, so it is incomplete");
     });
+  },
+  MERGE
+);
+
+test(
+  "a ZIP is opened in place: its PDFs join the strip in name order and merge",
+  async (t) => {
+    const inner = (name) => ({ name, buffer: makeNamedPdfFile(name.split("/").pop()).buffer });
+    await addFiles(t, "#fileInput", [
+      makeNamedPdfFile("loose.pdf"),
+      makeZipFile("bundle.zip", [
+        inner("folder/10-c.pdf"),
+        inner("2-b.pdf"),
+        { name: "__MACOSX/._2-b.pdf", buffer: Buffer.from("junk") },
+        { name: "notes.txt", buffer: makeTextFile().buffer },
+      ]),
+    ]);
+    await t.page.waitForFunction(() => document.querySelectorAll(".file-strip .chip").length === 3);
+    assert.deepEqual(await chipNames(t), ["loose.pdf", "2-b.pdf", "10-c.pdf"]);
+    assert.match(await statusText(t), /1 file\(s\) skipped/, "the text file inside the ZIP should be reported as skipped");
+    await waitForThumbnails(t.page);
+    await mergeNow(t);
+    const merged = await readMerged(t);
+    assert.deepEqual(merged.text, ["loose page 1", "2-b page 1", "10-c page 1"]);
+  },
+  MERGE
+);
+
+test(
+  "a damaged ZIP is named, and the other files in the same pick still go in",
+  async (t) => {
+    await addFiles(t, "#fileInput", [
+      makeNamedPdfFile("kept.pdf"),
+      { name: "broken.zip", mimeType: "application/zip", buffer: Buffer.from("not a zip at all") },
+    ]);
+    await waitForStatus(t, /broken\.zip could not be opened/);
+    assert.deepEqual(await chipNames(t), ["kept.pdf"]);
+    assert.equal(await t.page.locator("#fileInput").isEnabled(), true, "the picker must be usable again");
+  },
+  MERGE
+);
+
+test(
+  "a Word file inside a dropped ZIP is converted and merged like a loose one",
+  async (t) => {
+    await withDocxBuilder(t);
+    await t.page.evaluate(async () => {
+      const docx = await window.buildDocx(["Inside the archive."], "inside.docx");
+      const JSZip = await loadJsZip();
+      const zip = new JSZip();
+      zip.file("inside.docx", docx);
+      const file = new File([await zip.generateAsync({ type: "blob" })], "pack.zip", { type: "application/zip" });
+      const transfer = new DataTransfer();
+      transfer.items.add(file);
+      const drop = new DragEvent("drop", { bubbles: true, cancelable: true });
+      Object.defineProperty(drop, "dataTransfer", { value: transfer });
+      document.getElementById("dropzone").dispatchEvent(drop);
+    });
+    await t.page.waitForFunction(() => document.querySelectorAll(".file-strip .chip").length === 1);
+    assert.deepEqual(await chipNames(t), ["inside.docx"]);
+    await mergeNow(t);
+    const merged = await readMerged(t);
+    assert.match(merged.text.join(" "), /Inside the archive\./);
   },
   MERGE
 );
