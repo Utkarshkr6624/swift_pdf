@@ -40,8 +40,11 @@ const headOf = (html) => {
 
 // Every page the site ships, found on disk instead of listed here, so a page
 // added later is covered without anyone remembering to add it to PAGES too.
+// Search Console verification files (google<token>.html) are not pages: Google
+// checks their exact one-line content, so they carry no head and stay out of the sitemap.
+const isPageFile = (f) => f.endsWith(".html") && !/^google[0-9a-f]+\.html$/.test(f);
 const everyPageFile = async () =>
-  (await readdir(repoRoot)).filter((f) => f.endsWith(".html")).sort();
+  (await readdir(repoRoot)).filter(isPageFile).sort();
 
 const linksIn = (html) =>
   [...(headOf(html) || "").matchAll(/<link\b[^>]*>/gi)].map((m) => m[0]);
@@ -324,7 +327,7 @@ test(
 test(
   "the pages in the repo are all listed in the sitemap",
   async (t) => {
-    const files = (await readdir(repoRoot)).filter((f) => f.endsWith(".html"));
+    const files = (await readdir(repoRoot)).filter(isPageFile);
     const sitemap = await readFile(join(repoRoot, "sitemap.xml"), "utf8");
     // The home page is listed as the bare origin rather than as index.html.
     const missing = files.filter((file) => !sitemap.includes(file) && !(file === "index.html" && /<loc>[^<]*\/<\/loc>/.test(sitemap)));
